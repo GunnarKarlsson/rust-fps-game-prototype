@@ -452,7 +452,8 @@ fn shoot_bullet(
             PbrBundle {
                 mesh: meshes.add(Mesh::from(Cuboid::new(BULLET_SIZE, BULLET_SIZE, BULLET_SIZE))),
                 material: materials.add(StandardMaterial {
-                    base_color: Color::YELLOW,
+                    base_color: Color::rgb(1.0, 0.0, 0.0), // Pure red base color
+                    emissive: Color::rgb(1.0, 0.0, 0.0) * 50.0, // Much higher emissive intensity
                     ..default()
                 }),
                 transform: Transform::from_translation(camera.position),

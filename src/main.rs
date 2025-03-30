@@ -11,8 +11,7 @@ use bevy::{
 
 const PLAYER_SPEED: f32 = 5.0;
 const MOUSE_SENSITIVITY: f32 = 0.002;
-const GRID_WIDTH: usize = 2;
-const GRID_HEIGHT: usize = 5;
+const GRID_SIZE: usize = 10;
 const TILE_SIZE: f32 = 1.0;
 
 #[derive(Component)]
@@ -28,6 +27,82 @@ enum WallSide {
     South,  // Negative Z
     East,   // Positive X
     West,   // Negative X
+}
+
+// Define the grid layout here
+const GRID_LAYOUT: [[bool; GRID_SIZE]; GRID_SIZE] = [
+    [true, true, true, true, true, true, true, true, true, true],
+    [true, false, false, false, false, false, false, false, false, true],
+    [true, false, true, false, false, false, false, true, false, true],
+    [true, false, false, false, false, false, false, false, false, true],
+    [true, false, false, false, true, true, false, false, false, true],
+    [true, false, false, false, true, true, false, false, false, true],
+    [true, false, false, false, false, false, false, false, false, true],
+    [true, false, true, false, false, false, false, true, false, true],
+    [true, false, false, false, false, false, false, false, false, true],
+    [true, true, true, true, true, true, true, true, true, true],
+];
+
+fn spawn_wall(
+    commands: &mut Commands,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
+    wall_texture: Handle<Image>,
+    grid_x: usize,
+    grid_y: usize,
+    side: WallSide,
+) {
+    let (position, dimensions) = match side {
+        WallSide::North => (
+            Vec3::new(
+                (grid_x as f32 * TILE_SIZE) + (TILE_SIZE / 2.0),
+                0.0,
+                (grid_y as f32 * TILE_SIZE) + TILE_SIZE,
+            ),
+            Vec3::new(TILE_SIZE, 1.0, 0.1),
+        ),
+        WallSide::South => (
+            Vec3::new(
+                (grid_x as f32 * TILE_SIZE) + (TILE_SIZE / 2.0),
+                0.0,
+                grid_y as f32 * TILE_SIZE,
+            ),
+            Vec3::new(TILE_SIZE, 1.0, 0.1),
+        ),
+        WallSide::East => (
+            Vec3::new(
+                (grid_x as f32 * TILE_SIZE) + TILE_SIZE,
+                0.0,
+                (grid_y as f32 * TILE_SIZE) + (TILE_SIZE / 2.0),
+            ),
+            Vec3::new(0.1, 1.0, TILE_SIZE),
+        ),
+        WallSide::West => (
+            Vec3::new(
+                grid_x as f32 * TILE_SIZE,
+                0.0,
+                (grid_y as f32 * TILE_SIZE) + (TILE_SIZE / 2.0),
+            ),
+            Vec3::new(0.1, 1.0, TILE_SIZE),
+        ),
+    };
+
+    commands.spawn((
+        PbrBundle {
+            mesh: meshes.add(Mesh::from(Cuboid::new(dimensions.x, dimensions.y, dimensions.z))),
+            material: materials.add(StandardMaterial {
+                base_color_texture: Some(wall_texture.clone()),
+                ..default()
+            }),
+            transform: Transform::from_translation(position),
+            ..default()
+        },
+        Wall {
+            grid_x,
+            grid_y,
+            side,
+        },
+    ));
 }
 
 fn main() {
@@ -74,97 +149,26 @@ fn setup(
         });
     }
 
-    // Create walls for the first grid cell (0,0)
-    let grid_x = 0;
-    let grid_y = 0;
-    
-    // North wall (facing south)
-    commands.spawn((
-        PbrBundle {
-            mesh: meshes.add(Mesh::from(Cuboid::new(TILE_SIZE, 1.0, 0.1))),
-            material: materials.add(StandardMaterial {
-                base_color_texture: Some(wall_texture.clone()),
-                ..default()
-            }),
-            transform: Transform::from_xyz(
-                (grid_x as f32 * TILE_SIZE) + (TILE_SIZE / 2.0),
-                0.0,
-                (grid_y as f32 * TILE_SIZE) + TILE_SIZE,
-            ),
-            ..default()
-        },
-        Wall {
-            grid_x,
-            grid_y,
-            side: WallSide::North,
-        },
-    ));
-
-    // South wall (facing north)
-    commands.spawn((
-        PbrBundle {
-            mesh: meshes.add(Mesh::from(Cuboid::new(TILE_SIZE, 1.0, 0.1))),
-            material: materials.add(StandardMaterial {
-                base_color_texture: Some(wall_texture.clone()),
-                ..default()
-            }),
-            transform: Transform::from_xyz(
-                (grid_x as f32 * TILE_SIZE) + (TILE_SIZE / 2.0),
-                0.0,
-                grid_y as f32 * TILE_SIZE,
-            ),
-            ..default()
-        },
-        Wall {
-            grid_x,
-            grid_y,
-            side: WallSide::South,
-        },
-    ));
-
-    // East wall (facing west)
-    commands.spawn((
-        PbrBundle {
-            mesh: meshes.add(Mesh::from(Cuboid::new(0.1, 1.0, TILE_SIZE))),
-            material: materials.add(StandardMaterial {
-                base_color_texture: Some(wall_texture.clone()),
-                ..default()
-            }),
-            transform: Transform::from_xyz(
-                (grid_x as f32 * TILE_SIZE) + TILE_SIZE,
-                0.0,
-                (grid_y as f32 * TILE_SIZE) + (TILE_SIZE / 2.0),
-            ),
-            ..default()
-        },
-        Wall {
-            grid_x,
-            grid_y,
-            side: WallSide::East,
-        },
-    ));
-
-    // West wall (facing east)
-    commands.spawn((
-        PbrBundle {
-            mesh: meshes.add(Mesh::from(Cuboid::new(0.1, 1.0, TILE_SIZE))),
-            material: materials.add(StandardMaterial {
-                base_color_texture: Some(wall_texture.clone()),
-                ..default()
-            }),
-            transform: Transform::from_xyz(
-                grid_x as f32 * TILE_SIZE,
-                0.0,
-                (grid_y as f32 * TILE_SIZE) + (TILE_SIZE / 2.0),
-            ),
-            ..default()
-        },
-        Wall {
-            grid_x,
-            grid_y,
-            side: WallSide::West,
-        },
-    ));
+    // Create walls based on the grid layout
+    for y in 0..GRID_SIZE {
+        for x in 0..GRID_SIZE {
+            if GRID_LAYOUT[y][x] {
+                // Check each side and spawn walls as needed
+                if y == 0 || !GRID_LAYOUT[y-1][x] {
+                    spawn_wall(&mut commands, &mut meshes, &mut materials, wall_texture.clone(), x, y, WallSide::South);
+                }
+                if y == GRID_SIZE-1 || !GRID_LAYOUT[y+1][x] {
+                    spawn_wall(&mut commands, &mut meshes, &mut materials, wall_texture.clone(), x, y, WallSide::North);
+                }
+                if x == 0 || !GRID_LAYOUT[y][x-1] {
+                    spawn_wall(&mut commands, &mut meshes, &mut materials, wall_texture.clone(), x, y, WallSide::West);
+                }
+                if x == GRID_SIZE-1 || !GRID_LAYOUT[y][x+1] {
+                    spawn_wall(&mut commands, &mut meshes, &mut materials, wall_texture.clone(), x, y, WallSide::East);
+                }
+            }
+        }
+    }
 
     // Create the floor as a grid of tiles
     for x in -5..5 {

@@ -11,7 +11,7 @@ use bevy::{
 
 const PLAYER_SPEED: f32 = 5.0;
 const MOUSE_SENSITIVITY: f32 = 0.002;
-const GRID_SIZE: usize = 10;
+const GRID_SIZE: usize = 20;
 const TILE_SIZE: f32 = 1.0;
 const PLAYER_RADIUS: f32 = 0.3; // Player's collision radius
 const BULLET_SPEED: f32 = 3.0; // Doubled from 0.5 to 1.0 meters per second
@@ -35,18 +35,28 @@ enum WallSide {
     West,   // Negative X
 }
 
-// Define the grid layout here
+// Define the grid layout here - 20x20 with original pattern in center
 const GRID_LAYOUT: [[bool; GRID_SIZE]; GRID_SIZE] = [
-    [false, false, true, true, true, true, true, true, false, false],
-    [false, false, false, false, false, false, false, false, false, false],
-    [false, false, false, false, false, false, false, true, false, true],
-    [true, false, false, false, false, false, false, false, false, true],
-    [true, false, false, false, false, false, false, false, false, true],
-    [true, false, false, false, true, false, false, false, false, true],
-    [true, false, false, false, false, false, false, false, false, true],
-    [true, false, true, false, false, false, false, true, false, true],
-    [false, false, false, false, false, false, false, false, false, false],
-    [false, true, true, true, true, true, true, true, true, false],
+    [true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true],
+    [true, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true],
+    [true, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true],
+    [true, false, false, true, true, true, true, true, true, true, true, true, true, true, true, true, true, false, false, true],
+    [true, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true],
+    [true, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true],
+    [true, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true],
+    [true, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true],
+    [true, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true],
+    [true, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true],
+    [true, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true],
+    [true, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true],
+    [true, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true],
+    [true, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true],
+    [true, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true],
+    [true, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true],
+    [true, false, false, true, true, true, true, true, true, true, true, true, true, true, true, true, true, false, false, true],
+    [true, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true],
+    [true, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true],
+    [true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true],
 ];
 
 #[derive(Component)]
@@ -199,9 +209,9 @@ fn setup(
         }
     }
 
-    // Create the floor as a grid of tiles
-    for x in -5..5 {
-        for z in -5..5 {
+    // Create the floor as a grid of tiles - extended to match new grid size
+    for x in -10..10 {
+        for z in -10..10 {
             // Floor
             commands.spawn(PbrBundle {
                 mesh: meshes.add(Mesh::from(Plane3d::new(Vec3::Y))),

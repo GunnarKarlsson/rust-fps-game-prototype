@@ -3,6 +3,10 @@ use bevy::{
     input::{mouse::MouseMotion, keyboard::KeyCode, ButtonInput},
     window::WindowMode,
     math::primitives::{Cuboid, Plane3d},
+    render::{
+        render_resource::{AddressMode},
+        texture::{ImageSampler, ImageSamplerDescriptor, ImageAddressMode, ImageFilterMode},
+    },
 };
 
 const PLAYER_SPEED: f32 = 5.0;
@@ -32,11 +36,24 @@ fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut images: ResMut<Assets<Image>>,
     asset_server: Res<AssetServer>,
 ) {
     // Load the textures
     let wall_texture = asset_server.load("stone.png");
     let floor_texture = asset_server.load("floor.png");
+    
+    // Configure floor texture to repeat
+    if let Some(texture) = images.get_mut(&floor_texture) {
+        texture.sampler = ImageSampler::Descriptor(ImageSamplerDescriptor {
+            address_mode_u: ImageAddressMode::Repeat,
+            address_mode_v: ImageAddressMode::Repeat,
+            mag_filter: bevy::render::texture::ImageFilterMode::Linear,
+            min_filter: bevy::render::texture::ImageFilterMode::Linear,
+            mipmap_filter: bevy::render::texture::ImageFilterMode::Linear,
+            ..default()
+        });
+    }
     
     // Create the wall
     commands.spawn(PbrBundle {
@@ -49,18 +66,23 @@ fn setup(
         ..default()
     });
 
-    // Create the floor
-    commands.spawn(PbrBundle {
-        mesh: meshes.add(Mesh::from(Plane3d::new(Vec3::Y))),
-        material: materials.add(StandardMaterial {
-            base_color_texture: Some(floor_texture),
-            base_color: Color::WHITE,
-            ..default()
-        }),
-        transform: Transform::from_xyz(0.0, -0.5, 0.0)  // Move down to be at the base of the wall
-            .with_scale(Vec3::new(10.0, 1.0, 10.0)),
-        ..default()
-    });
+    // Create the floor as a grid of tiles
+    for x in -5..5 {
+        for z in -5..5 {
+            commands.spawn(PbrBundle {
+                mesh: meshes.add(Mesh::from(Plane3d::new(Vec3::Y))),
+                material: materials.add(StandardMaterial {
+                    base_color_texture: Some(floor_texture.clone()),
+                    base_color: Color::WHITE,
+                    alpha_mode: AlphaMode::Opaque,
+                    double_sided: true,
+                    ..default()
+                }),
+                transform: Transform::from_xyz(x as f32, -0.5, z as f32),
+                ..default()
+            });
+        }
+    }
 
     // Create a light
     commands.spawn(DirectionalLightBundle {

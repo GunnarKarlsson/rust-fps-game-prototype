@@ -23,11 +23,12 @@ fn main() {
             ..default()
         }))
         .insert_resource(ClearColor(Color::rgb(0.4, 0.6, 1.0))) // Sky blue background
-        .add_systems(Startup, setup)
+        .add_systems(Startup, (setup, center_cursor))
         .add_systems(Update, (
             player_movement,
             player_look,
             cursor_grab_system,
+            quit_system,
         ).chain())
         .run();
 }
@@ -62,7 +63,7 @@ fn setup(
             base_color_texture: Some(wall_texture),
             ..default()
         }),
-        transform: Transform::from_xyz(0.0, 0.0, -5.0),
+        transform: Transform::from_xyz(0.0, 0.0, -2.0),
         ..default()
     });
 
@@ -97,13 +98,13 @@ fn setup(
     // Create the camera
     commands.spawn((
         Camera3dBundle {
-            transform: Transform::from_xyz(0.0, 1.6, 0.0).looking_at(Vec3::new(0.0, 1.6, -5.0), Vec3::Y),
+            transform: Transform::from_xyz(0.0, 0.5, 0.0).looking_at(Vec3::new(0.0, 1.6, -2.0), Vec3::Y),
             ..default()
         },
         PlayerCamera {
             yaw: 0.0,
             pitch: 0.0,
-            position: Vec3::new(0.0, 1.6, 0.0),
+            position: Vec3::new(0.0, 0.5, 0.0),
         },
     ));
 }
@@ -177,5 +178,18 @@ fn cursor_grab_system(
     if keyboard.just_pressed(KeyCode::Escape) {
         window.cursor.grab_mode = bevy::window::CursorGrabMode::None;
         window.cursor.visible = true;
+    }
+}
+
+fn center_cursor(mut windows: Query<&mut Window>) {
+    if let Ok(mut window) = windows.get_single_mut() {
+        window.cursor.grab_mode = bevy::window::CursorGrabMode::Locked;
+        window.cursor.visible = false;
+    }
+}
+
+fn quit_system(keyboard: Res<ButtonInput<KeyCode>>) {
+    if keyboard.just_pressed(KeyCode::KeyQ) {
+        std::process::exit(0);
     }
 }

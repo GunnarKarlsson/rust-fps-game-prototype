@@ -11,6 +11,24 @@ use bevy::{
 
 const PLAYER_SPEED: f32 = 5.0;
 const MOUSE_SENSITIVITY: f32 = 0.002;
+const GRID_WIDTH: usize = 2;
+const GRID_HEIGHT: usize = 5;
+const TILE_SIZE: f32 = 1.0;
+
+#[derive(Component)]
+struct Wall {
+    grid_x: usize,
+    grid_y: usize,
+    side: WallSide,
+}
+
+#[derive(PartialEq)]
+enum WallSide {
+    North,  // Positive Z
+    South,  // Negative Z
+    East,   // Positive X
+    West,   // Negative X
+}
 
 fn main() {
     App::new()
@@ -55,17 +73,98 @@ fn setup(
             ..default()
         });
     }
+
+    // Create walls for the first grid cell (0,0)
+    let grid_x = 0;
+    let grid_y = 0;
     
-    // Create the wall
-    commands.spawn(PbrBundle {
-        mesh: meshes.add(Mesh::from(Cuboid::new(1.0, 1.0, 0.1))),
-        material: materials.add(StandardMaterial {
-            base_color_texture: Some(wall_texture),
+    // North wall (facing south)
+    commands.spawn((
+        PbrBundle {
+            mesh: meshes.add(Mesh::from(Cuboid::new(TILE_SIZE, 1.0, 0.1))),
+            material: materials.add(StandardMaterial {
+                base_color_texture: Some(wall_texture.clone()),
+                ..default()
+            }),
+            transform: Transform::from_xyz(
+                (grid_x as f32 * TILE_SIZE) + (TILE_SIZE / 2.0),
+                0.0,
+                (grid_y as f32 * TILE_SIZE) + TILE_SIZE,
+            ),
             ..default()
-        }),
-        transform: Transform::from_xyz(0.0, 0.0, -2.0),
-        ..default()
-    });
+        },
+        Wall {
+            grid_x,
+            grid_y,
+            side: WallSide::North,
+        },
+    ));
+
+    // South wall (facing north)
+    commands.spawn((
+        PbrBundle {
+            mesh: meshes.add(Mesh::from(Cuboid::new(TILE_SIZE, 1.0, 0.1))),
+            material: materials.add(StandardMaterial {
+                base_color_texture: Some(wall_texture.clone()),
+                ..default()
+            }),
+            transform: Transform::from_xyz(
+                (grid_x as f32 * TILE_SIZE) + (TILE_SIZE / 2.0),
+                0.0,
+                grid_y as f32 * TILE_SIZE,
+            ),
+            ..default()
+        },
+        Wall {
+            grid_x,
+            grid_y,
+            side: WallSide::South,
+        },
+    ));
+
+    // East wall (facing west)
+    commands.spawn((
+        PbrBundle {
+            mesh: meshes.add(Mesh::from(Cuboid::new(0.1, 1.0, TILE_SIZE))),
+            material: materials.add(StandardMaterial {
+                base_color_texture: Some(wall_texture.clone()),
+                ..default()
+            }),
+            transform: Transform::from_xyz(
+                (grid_x as f32 * TILE_SIZE) + TILE_SIZE,
+                0.0,
+                (grid_y as f32 * TILE_SIZE) + (TILE_SIZE / 2.0),
+            ),
+            ..default()
+        },
+        Wall {
+            grid_x,
+            grid_y,
+            side: WallSide::East,
+        },
+    ));
+
+    // West wall (facing east)
+    commands.spawn((
+        PbrBundle {
+            mesh: meshes.add(Mesh::from(Cuboid::new(0.1, 1.0, TILE_SIZE))),
+            material: materials.add(StandardMaterial {
+                base_color_texture: Some(wall_texture.clone()),
+                ..default()
+            }),
+            transform: Transform::from_xyz(
+                grid_x as f32 * TILE_SIZE,
+                0.0,
+                (grid_y as f32 * TILE_SIZE) + (TILE_SIZE / 2.0),
+            ),
+            ..default()
+        },
+        Wall {
+            grid_x,
+            grid_y,
+            side: WallSide::West,
+        },
+    ));
 
     // Create the floor as a grid of tiles
     for x in -5..5 {

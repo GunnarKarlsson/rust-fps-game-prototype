@@ -1,12 +1,9 @@
 use bevy::{
-    prelude::*,
-    input::{mouse::MouseMotion, keyboard::KeyCode, ButtonInput},
-    window::WindowMode,
+    input::{keyboard::KeyCode, mouse::MouseMotion, ButtonInput},
     math::primitives::{Cuboid, Plane3d},
-    render::{
-        render_resource::{AddressMode},
-        texture::{ImageSampler, ImageSamplerDescriptor, ImageAddressMode, ImageFilterMode},
-    },
+    prelude::*,
+    render::texture::{ImageAddressMode, ImageSampler, ImageSamplerDescriptor},
+    window::WindowMode,
 };
 
 const PLAYER_SPEED: f32 = 5.0;
@@ -21,42 +18,98 @@ const BULLET_LIGHT_INTENSITY: f32 = 300000.0;
 const BULLET_LIGHT_RANGE: f32 = 3.0;
 
 #[derive(Component)]
-struct Wall {
-    grid_x: usize,
-    grid_y: usize,
-    side: WallSide,
-}
+struct Wall {}
 
 #[derive(PartialEq)]
 enum WallSide {
-    North,  // Positive Z
-    South,  // Negative Z
-    East,   // Positive X
-    West,   // Negative X
+    North, // Positive Z
+    South, // Negative Z
+    East,  // Positive X
+    West,  // Negative X
 }
 
 // Define the grid layout here - 20x20 with original pattern in center
 const GRID_LAYOUT: [[bool; GRID_SIZE]; GRID_SIZE] = [
-    [true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true],
-    [true, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true],
-    [true, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true],
-    [true, false, false, true, true, true, true, true, false, false, true, true, true, true, true, true, true, false, false, true],
-    [true, false, false, false, false, true, false, false, false, false, true, false, false, false, false, false, false, false, false, true],
-    [true, false, false, false, false, true, false, false, false, false, true, false, false, false, false, false, false, false, false, true],
-    [true, false, false, false, false, true, false, false, false, false, true, false, false, false, false, false, false, false, false, true],
-    [true, false, false, false, false, true, false, false, false, false, true, false, false, false, false, false, false, false, false, true],
-    [true, false, false, false, false, true, true, true, true, true, true, true, false, false, false, false, false, false, false, true],
-    [true, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true],
-    [true, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true],
-    [true, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true],
-    [true, false, false, false, false, false, false, false, false, false, false, false, false, false, true, true, true, true, true, true],
-    [true, false, false, false, false, false, false, false, false, false, false, false, false, false, true, false, false, false, false, true],
-    [true, false, false, false, false, false, false, false, false, false, false, false, false, false, true, false, false, false, false, true],
-    [true, false, false, false, false, false, false, false, false, false, false, false, false, false, true, false, false, false, false, true],
-    [true, false, false, true, true, true, true, true, true, true, true, true, true, true, true, true, true, false, false, true],
-    [true, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true],
-    [true, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true],
-    [true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true],
+    [
+        true, true, true, true, true, true, true, true, true, true, true, true, true, true, true,
+        true, true, true, true, true,
+    ],
+    [
+        true, false, false, false, false, false, false, false, false, false, false, false, false,
+        false, false, false, false, false, false, true,
+    ],
+    [
+        true, false, false, false, false, false, false, false, false, false, false, false, false,
+        false, false, false, false, false, false, true,
+    ],
+    [
+        true, false, false, true, true, true, true, true, false, false, true, true, true, true,
+        true, true, true, false, false, true,
+    ],
+    [
+        true, false, false, false, false, true, false, false, false, false, true, false, false,
+        false, false, false, false, false, false, true,
+    ],
+    [
+        true, false, false, false, false, true, false, false, false, false, true, false, false,
+        false, false, false, false, false, false, true,
+    ],
+    [
+        true, false, false, false, false, true, false, false, false, false, true, false, false,
+        false, false, false, false, false, false, true,
+    ],
+    [
+        true, false, false, false, false, true, false, false, false, false, true, false, false,
+        false, false, false, false, false, false, true,
+    ],
+    [
+        true, false, false, false, false, true, true, true, true, true, true, true, false, false,
+        false, false, false, false, false, true,
+    ],
+    [
+        true, false, false, false, false, false, false, false, false, false, false, false, false,
+        false, false, false, false, false, false, true,
+    ],
+    [
+        true, false, false, false, false, false, false, false, false, false, false, false, false,
+        false, false, false, false, false, false, true,
+    ],
+    [
+        true, false, false, false, false, false, false, false, false, false, false, false, false,
+        false, false, false, false, false, false, true,
+    ],
+    [
+        true, false, false, false, false, false, false, false, false, false, false, false, false,
+        false, true, true, true, true, true, true,
+    ],
+    [
+        true, false, false, false, false, false, false, false, false, false, false, false, false,
+        false, true, false, false, false, false, true,
+    ],
+    [
+        true, false, false, false, false, false, false, false, false, false, false, false, false,
+        false, true, false, false, false, false, true,
+    ],
+    [
+        true, false, false, false, false, false, false, false, false, false, false, false, false,
+        false, true, false, false, false, false, true,
+    ],
+    [
+        true, false, false, true, true, true, true, true, true, true, true, true, true, true, true,
+        true, true, false, false, true,
+    ],
+    [
+        true, false, false, false, false, false, false, false, false, false, false, false, false,
+        false, false, false, false, false, false, true,
+    ],
+    [
+        true, false, false, false, false, false, false, false, false, false, false, false, false,
+        false, false, false, false, false, false, true,
+    ],
+    [
+        true, true, true, true, true, true, true, true, true, true, true, true, true, true, true,
+        true, true, true, true, true,
+    ],
 ];
 
 #[derive(Component)]
@@ -114,7 +167,11 @@ fn spawn_wall(
 
     commands.spawn((
         PbrBundle {
-            mesh: meshes.add(Mesh::from(Cuboid::new(dimensions.x, dimensions.y, dimensions.z))),
+            mesh: meshes.add(Mesh::from(Cuboid::new(
+                dimensions.x,
+                dimensions.y,
+                dimensions.z,
+            ))),
             material: materials.add(StandardMaterial {
                 base_color_texture: Some(wall_texture.clone()),
                 ..default()
@@ -122,11 +179,7 @@ fn spawn_wall(
             transform: Transform::from_translation(position),
             ..default()
         },
-        Wall {
-            grid_x,
-            grid_y,
-            side,
-        },
+        Wall {},
     ));
 }
 
@@ -142,14 +195,18 @@ fn main() {
         }))
         .insert_resource(ClearColor(Color::rgb(0.4, 0.6, 1.0))) // Sky blue background
         .add_systems(Startup, (setup, center_cursor))
-        .add_systems(Update, (
-            player_movement,
-            player_look,
-            cursor_grab_system,
-            quit_system,
-            shoot_bullet,
-            update_bullets,
-        ).chain())
+        .add_systems(
+            Update,
+            (
+                player_movement,
+                player_look,
+                cursor_grab_system,
+                quit_system,
+                shoot_bullet,
+                update_bullets,
+            )
+                .chain(),
+        )
         .run();
 }
 
@@ -163,7 +220,7 @@ fn setup(
     // Load the textures
     let wall_texture = asset_server.load("stone.png");
     let floor_texture = asset_server.load("floor.png");
-    
+
     // Configure floor texture to repeat
     if let Some(texture) = images.get_mut(&floor_texture) {
         texture.sampler = ImageSampler::Descriptor(ImageSamplerDescriptor {
@@ -181,29 +238,101 @@ fn setup(
         for x in 0..GRID_SIZE {
             if GRID_LAYOUT[y][x] {
                 // Check each side and spawn walls as needed
-                if y == 0 || !GRID_LAYOUT[y-1][x] {
+                if y == 0 || !GRID_LAYOUT[y - 1][x] {
                     // Spawn bottom wall
-                    spawn_wall(&mut commands, &mut meshes, &mut materials, wall_texture.clone(), x, y, WallSide::South, 0.0);
+                    spawn_wall(
+                        &mut commands,
+                        &mut meshes,
+                        &mut materials,
+                        wall_texture.clone(),
+                        x,
+                        y,
+                        WallSide::South,
+                        0.0,
+                    );
                     // Spawn top wall
-                    spawn_wall(&mut commands, &mut meshes, &mut materials, wall_texture.clone(), x, y, WallSide::South, 1.0);
+                    spawn_wall(
+                        &mut commands,
+                        &mut meshes,
+                        &mut materials,
+                        wall_texture.clone(),
+                        x,
+                        y,
+                        WallSide::South,
+                        1.0,
+                    );
                 }
-                if y == GRID_SIZE-1 || !GRID_LAYOUT[y+1][x] {
+                if y == GRID_SIZE - 1 || !GRID_LAYOUT[y + 1][x] {
                     // Spawn bottom wall
-                    spawn_wall(&mut commands, &mut meshes, &mut materials, wall_texture.clone(), x, y, WallSide::North, 0.0);
+                    spawn_wall(
+                        &mut commands,
+                        &mut meshes,
+                        &mut materials,
+                        wall_texture.clone(),
+                        x,
+                        y,
+                        WallSide::North,
+                        0.0,
+                    );
                     // Spawn top wall
-                    spawn_wall(&mut commands, &mut meshes, &mut materials, wall_texture.clone(), x, y, WallSide::North, 1.0);
+                    spawn_wall(
+                        &mut commands,
+                        &mut meshes,
+                        &mut materials,
+                        wall_texture.clone(),
+                        x,
+                        y,
+                        WallSide::North,
+                        1.0,
+                    );
                 }
-                if x == 0 || !GRID_LAYOUT[y][x-1] {
+                if x == 0 || !GRID_LAYOUT[y][x - 1] {
                     // Spawn bottom wall
-                    spawn_wall(&mut commands, &mut meshes, &mut materials, wall_texture.clone(), x, y, WallSide::West, 0.0);
+                    spawn_wall(
+                        &mut commands,
+                        &mut meshes,
+                        &mut materials,
+                        wall_texture.clone(),
+                        x,
+                        y,
+                        WallSide::West,
+                        0.0,
+                    );
                     // Spawn top wall
-                    spawn_wall(&mut commands, &mut meshes, &mut materials, wall_texture.clone(), x, y, WallSide::West, 1.0);
+                    spawn_wall(
+                        &mut commands,
+                        &mut meshes,
+                        &mut materials,
+                        wall_texture.clone(),
+                        x,
+                        y,
+                        WallSide::West,
+                        1.0,
+                    );
                 }
-                if x == GRID_SIZE-1 || !GRID_LAYOUT[y][x+1] {
+                if x == GRID_SIZE - 1 || !GRID_LAYOUT[y][x + 1] {
                     // Spawn bottom wall
-                    spawn_wall(&mut commands, &mut meshes, &mut materials, wall_texture.clone(), x, y, WallSide::East, 0.0);
+                    spawn_wall(
+                        &mut commands,
+                        &mut meshes,
+                        &mut materials,
+                        wall_texture.clone(),
+                        x,
+                        y,
+                        WallSide::East,
+                        0.0,
+                    );
                     // Spawn top wall
-                    spawn_wall(&mut commands, &mut meshes, &mut materials, wall_texture.clone(), x, y, WallSide::East, 1.0);
+                    spawn_wall(
+                        &mut commands,
+                        &mut meshes,
+                        &mut materials,
+                        wall_texture.clone(),
+                        x,
+                        y,
+                        WallSide::East,
+                        1.0,
+                    );
                 }
             }
         }
@@ -256,12 +385,12 @@ fn setup(
 
     // Create interior point lights
     let grid_offset = (GRID_SIZE as f32 * TILE_SIZE) / 2.0;
-    
+
     // First light in the first open space
     commands.spawn(PointLightBundle {
         point_light: PointLight {
             color: Color::rgb(1.0, 0.0, 0.0), // Pure orange light
-            intensity: 200000.0, // Increased from 2000.0
+            intensity: 200000.0,              // Increased from 2000.0
             range: 5.0,
             shadows_enabled: true,
             ..default()
@@ -278,7 +407,7 @@ fn setup(
     commands.spawn(PointLightBundle {
         point_light: PointLight {
             color: Color::rgb(0.0, 0.0, 1.0), // Pure blue light
-            intensity: 200000.0, // Increased from 2000.0
+            intensity: 200000.0,              // Increased from 2000.0
             range: 5.0,
             shadows_enabled: true,
             ..default()
@@ -294,7 +423,8 @@ fn setup(
     // Create the camera
     commands.spawn((
         Camera3dBundle {
-            transform: Transform::from_xyz(0.0, 0.5, 2.0).looking_at(Vec3::new(0.0, 1.6, 0.0), Vec3::Y),
+            transform: Transform::from_xyz(0.0, 0.5, 2.0)
+                .looking_at(Vec3::new(0.0, 1.6, 0.0), Vec3::Y),
             ..default()
         },
         PlayerCamera {
@@ -329,13 +459,13 @@ fn is_wall_at_position(x: usize, z: usize) -> bool {
 fn check_collision(current_pos: Vec3, movement: Vec3) -> bool {
     let grid_offset = (GRID_SIZE as f32 * TILE_SIZE) / 2.0;
     let (current_x, current_z) = world_to_grid(current_pos);
-    
+
     // Check multiple points along the movement vector
     let steps = 4;
     for i in 0..=steps {
         let t = i as f32 / steps as f32;
         let check_pos = current_pos + movement * t;
-        
+
         // Check a few points around the player's radius
         let radius_points = [
             Vec3::new(PLAYER_RADIUS, 0.0, 0.0),
@@ -343,18 +473,21 @@ fn check_collision(current_pos: Vec3, movement: Vec3) -> bool {
             Vec3::new(0.0, 0.0, PLAYER_RADIUS),
             Vec3::new(0.0, 0.0, -PLAYER_RADIUS),
         ];
-        
+
         for offset in radius_points.iter() {
             let check_point = check_pos + *offset;
             let (grid_x, grid_z) = world_to_grid(check_point);
-            
+
             if is_wall_at_position(grid_x, grid_z) {
-                println!("Collision detected at grid position: ({}, {})", grid_x, grid_z);
+                println!(
+                    "Collision detected at grid position: ({}, {})",
+                    grid_x, grid_z
+                );
                 return true;
             }
         }
     }
-    
+
     false
 }
 
@@ -364,9 +497,9 @@ fn player_movement(
     mut query: Query<(&mut Transform, &mut PlayerCamera)>,
 ) {
     let (mut transform, mut camera) = query.single_mut();
-    
+
     let mut movement = Vec3::ZERO;
-    
+
     if keyboard.pressed(KeyCode::KeyW) || keyboard.pressed(KeyCode::ArrowUp) {
         movement += Vec3::new(0.0, 0.0, -1.0);
     }
@@ -384,10 +517,10 @@ fn player_movement(
         movement = movement.normalize();
         let rotation = Quat::from_axis_angle(Vec3::Y, camera.yaw);
         movement = rotation * movement;
-        
+
         // Calculate the movement for this frame
         let frame_movement = movement * PLAYER_SPEED * time.delta_seconds();
-        
+
         // Check for collisions before applying movement
         if !check_collision(camera.position, frame_movement) {
             camera.position += frame_movement;
@@ -406,10 +539,14 @@ fn player_look(
     for ev in motion_evr.read() {
         camera.yaw -= ev.delta.x * MOUSE_SENSITIVITY;
         camera.pitch -= ev.delta.y * MOUSE_SENSITIVITY;
-        camera.pitch = camera.pitch.clamp(-89.0 * std::f32::consts::PI / 180.0, 89.0 * std::f32::consts::PI / 180.0);
+        camera.pitch = camera.pitch.clamp(
+            -89.0 * std::f32::consts::PI / 180.0,
+            89.0 * std::f32::consts::PI / 180.0,
+        );
     }
 
-    let rotation = Quat::from_axis_angle(Vec3::Y, camera.yaw) * Quat::from_axis_angle(Vec3::X, camera.pitch);
+    let rotation =
+        Quat::from_axis_angle(Vec3::Y, camera.yaw) * Quat::from_axis_angle(Vec3::X, camera.pitch);
     transform.rotation = rotation;
 }
 
@@ -453,42 +590,51 @@ fn shoot_bullet(
 ) {
     if keyboard.just_pressed(KeyCode::Space) {
         let (transform, camera) = camera_query.single();
-        
+
         // Calculate bullet direction based on camera rotation
-        let rotation = Quat::from_axis_angle(Vec3::Y, camera.yaw) * Quat::from_axis_angle(Vec3::X, camera.pitch);
+        let rotation = Quat::from_axis_angle(Vec3::Y, camera.yaw)
+            * Quat::from_axis_angle(Vec3::X, camera.pitch);
         let bullet_direction = rotation * -Vec3::Z; // Negative Z is forward in our coordinate system
-        
+
         // Spawn bullet
-        let bullet_entity = commands.spawn((
-            PbrBundle {
-                mesh: meshes.add(Mesh::from(Cuboid::new(BULLET_SIZE, BULLET_SIZE, BULLET_SIZE))),
-                material: materials.add(StandardMaterial {
-                    base_color: Color::rgb(1.0, 0.0, 0.0), // Pure red base color
-                    emissive: Color::rgb(1.0, 0.0, 0.0) * 50.0, // Much higher emissive intensity
+        let bullet_entity = commands
+            .spawn((
+                PbrBundle {
+                    mesh: meshes.add(Mesh::from(Cuboid::new(
+                        BULLET_SIZE,
+                        BULLET_SIZE,
+                        BULLET_SIZE,
+                    ))),
+                    material: materials.add(StandardMaterial {
+                        base_color: Color::rgb(1.0, 0.0, 0.0), // Pure red base color
+                        emissive: Color::rgb(1.0, 0.0, 0.0) * 50.0, // Much higher emissive intensity
+                        ..default()
+                    }),
+                    transform: Transform::from_translation(camera.position),
                     ..default()
-                }),
-                transform: Transform::from_translation(camera.position),
-                ..default()
-            },
-            Bullet {
-                velocity: bullet_direction * BULLET_SPEED,
-                lifetime: BULLET_LIFETIME,
-                light: Entity::PLACEHOLDER, // Will be updated after light spawn
-            },
-        )).id();
+                },
+                Bullet {
+                    velocity: bullet_direction * BULLET_SPEED,
+                    lifetime: BULLET_LIFETIME,
+                    light: Entity::PLACEHOLDER, // Will be updated after light spawn
+                },
+            ))
+            .id();
 
         // Spawn light for the bullet
-        let light_entity = commands.spawn(PointLightBundle {
-            point_light: PointLight {
-                color: Color::rgb(1.0, 0.0, 0.0), // Red light
-                intensity: BULLET_LIGHT_INTENSITY,
-                range: BULLET_LIGHT_RANGE,
-                shadows_enabled: true,
+        let light_entity = commands
+            .spawn(PointLightBundle {
+                point_light: PointLight {
+                    color: Color::rgb(1.0, 0.0, 0.0), // Red light
+                    intensity: BULLET_LIGHT_INTENSITY,
+                    range: BULLET_LIGHT_RANGE,
+                    shadows_enabled: true,
+                    ..default()
+                },
+                transform: Transform::from_translation(camera.position),
                 ..default()
-            },
-            transform: Transform::from_translation(camera.position),
-            ..default()
-        }).id();
+            })
+            .id();
 
         // Update bullet with light entity reference
         if let Some(mut bullet) = commands.get_entity(bullet_entity) {
@@ -510,15 +656,15 @@ fn update_bullets(
     for (entity, mut transform, mut bullet) in bullet_query.iter_mut() {
         // Update position
         transform.translation += bullet.velocity * time.delta_seconds();
-        
+
         // Update light position
         if let Ok(mut light_transform) = light_query.get_mut(bullet.light) {
             light_transform.translation = transform.translation;
         }
-        
+
         // Update lifetime
         bullet.lifetime -= time.delta_seconds();
-        
+
         // Remove bullet and its light if lifetime is up
         if bullet.lifetime <= 0.0 {
             commands.entity(bullet.light).despawn();

@@ -52,13 +52,14 @@ fn spawn_wall(
     grid_x: usize,
     grid_y: usize,
     side: WallSide,
+    height: f32, // 0.0 for bottom wall, 1.0 for top wall
 ) {
     let grid_offset = (GRID_SIZE as f32 * TILE_SIZE) / 2.0;
     let (position, dimensions) = match side {
         WallSide::North => (
             Vec3::new(
                 (grid_x as f32 * TILE_SIZE) + (TILE_SIZE / 2.0) - grid_offset,
-                0.0,
+                height, // Add height offset
                 (grid_y as f32 * TILE_SIZE) + TILE_SIZE - grid_offset,
             ),
             Vec3::new(TILE_SIZE, 1.0, 0.1),
@@ -66,7 +67,7 @@ fn spawn_wall(
         WallSide::South => (
             Vec3::new(
                 (grid_x as f32 * TILE_SIZE) + (TILE_SIZE / 2.0) - grid_offset,
-                0.0,
+                height, // Add height offset
                 grid_y as f32 * TILE_SIZE - grid_offset,
             ),
             Vec3::new(TILE_SIZE, 1.0, 0.1),
@@ -74,7 +75,7 @@ fn spawn_wall(
         WallSide::East => (
             Vec3::new(
                 (grid_x as f32 * TILE_SIZE) + TILE_SIZE - grid_offset,
-                0.0,
+                height, // Add height offset
                 (grid_y as f32 * TILE_SIZE) + (TILE_SIZE / 2.0) - grid_offset,
             ),
             Vec3::new(0.1, 1.0, TILE_SIZE),
@@ -82,7 +83,7 @@ fn spawn_wall(
         WallSide::West => (
             Vec3::new(
                 grid_x as f32 * TILE_SIZE - grid_offset,
-                0.0,
+                height, // Add height offset
                 (grid_y as f32 * TILE_SIZE) + (TILE_SIZE / 2.0) - grid_offset,
             ),
             Vec3::new(0.1, 1.0, TILE_SIZE),
@@ -157,16 +158,28 @@ fn setup(
             if GRID_LAYOUT[y][x] {
                 // Check each side and spawn walls as needed
                 if y == 0 || !GRID_LAYOUT[y-1][x] {
-                    spawn_wall(&mut commands, &mut meshes, &mut materials, wall_texture.clone(), x, y, WallSide::South);
+                    // Spawn bottom wall
+                    spawn_wall(&mut commands, &mut meshes, &mut materials, wall_texture.clone(), x, y, WallSide::South, 0.0);
+                    // Spawn top wall
+                    spawn_wall(&mut commands, &mut meshes, &mut materials, wall_texture.clone(), x, y, WallSide::South, 1.0);
                 }
                 if y == GRID_SIZE-1 || !GRID_LAYOUT[y+1][x] {
-                    spawn_wall(&mut commands, &mut meshes, &mut materials, wall_texture.clone(), x, y, WallSide::North);
+                    // Spawn bottom wall
+                    spawn_wall(&mut commands, &mut meshes, &mut materials, wall_texture.clone(), x, y, WallSide::North, 0.0);
+                    // Spawn top wall
+                    spawn_wall(&mut commands, &mut meshes, &mut materials, wall_texture.clone(), x, y, WallSide::North, 1.0);
                 }
                 if x == 0 || !GRID_LAYOUT[y][x-1] {
-                    spawn_wall(&mut commands, &mut meshes, &mut materials, wall_texture.clone(), x, y, WallSide::West);
+                    // Spawn bottom wall
+                    spawn_wall(&mut commands, &mut meshes, &mut materials, wall_texture.clone(), x, y, WallSide::West, 0.0);
+                    // Spawn top wall
+                    spawn_wall(&mut commands, &mut meshes, &mut materials, wall_texture.clone(), x, y, WallSide::West, 1.0);
                 }
                 if x == GRID_SIZE-1 || !GRID_LAYOUT[y][x+1] {
-                    spawn_wall(&mut commands, &mut meshes, &mut materials, wall_texture.clone(), x, y, WallSide::East);
+                    // Spawn bottom wall
+                    spawn_wall(&mut commands, &mut meshes, &mut materials, wall_texture.clone(), x, y, WallSide::East, 0.0);
+                    // Spawn top wall
+                    spawn_wall(&mut commands, &mut meshes, &mut materials, wall_texture.clone(), x, y, WallSide::East, 1.0);
                 }
             }
         }
@@ -175,6 +188,7 @@ fn setup(
     // Create the floor as a grid of tiles
     for x in -5..5 {
         for z in -5..5 {
+            // Floor
             commands.spawn(PbrBundle {
                 mesh: meshes.add(Mesh::from(Plane3d::new(Vec3::Y))),
                 material: materials.add(StandardMaterial {
@@ -187,16 +201,68 @@ fn setup(
                 transform: Transform::from_xyz(x as f32, -0.5, z as f32),
                 ..default()
             });
+
+            // Ceiling (2 units above the floor, facing down)
+            commands.spawn(PbrBundle {
+                mesh: meshes.add(Mesh::from(Plane3d::new(-Vec3::Y))),
+                material: materials.add(StandardMaterial {
+                    base_color_texture: Some(floor_texture.clone()),
+                    base_color: Color::WHITE,
+                    alpha_mode: AlphaMode::Opaque,
+                    double_sided: true,
+                    ..default()
+                }),
+                transform: Transform::from_xyz(x as f32, 1.5, z as f32),
+                ..default()
+            });
         }
     }
 
-    // Create a light
+    // Create a directional light for shadows
     commands.spawn(DirectionalLightBundle {
         directional_light: DirectionalLight {
             shadows_enabled: true,
+            illuminance: 1000.0, // Reduced from default
             ..default()
         },
         transform: Transform::from_xyz(4.0, 8.0, 4.0).looking_at(Vec3::ZERO, Vec3::Y),
+        ..default()
+    });
+
+    // Create interior point lights
+    let grid_offset = (GRID_SIZE as f32 * TILE_SIZE) / 2.0;
+    
+    // First light in the first open space
+    commands.spawn(PointLightBundle {
+        point_light: PointLight {
+            color: Color::rgb(1.0, 0.0, 0.0), // Pure orange light
+            intensity: 500000.0, // Increased from 2000.0
+            range: 5.0,
+            shadows_enabled: true,
+            ..default()
+        },
+        transform: Transform::from_xyz(
+            (2.0 * TILE_SIZE) - grid_offset,
+            0.5, // Halfway between floor and ceiling
+            (2.0 * TILE_SIZE) - grid_offset,
+        ),
+        ..default()
+    });
+
+    // Second light in the second open space
+    commands.spawn(PointLightBundle {
+        point_light: PointLight {
+            color: Color::rgb(0.0, 0.0, 1.0), // Pure blue light
+            intensity: 500000.0, // Increased from 2000.0
+            range: 5.0,
+            shadows_enabled: true,
+            ..default()
+        },
+        transform: Transform::from_xyz(
+            (8.0 * TILE_SIZE) - grid_offset,
+            0.5, // Halfway between floor and ceiling
+            (4.0 * TILE_SIZE) - grid_offset,
+        ),
         ..default()
     });
 

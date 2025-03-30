@@ -14,7 +14,7 @@ const MOUSE_SENSITIVITY: f32 = 0.002;
 const GRID_SIZE: usize = 20;
 const TILE_SIZE: f32 = 1.0;
 const PLAYER_RADIUS: f32 = 0.3; // Player's collision radius
-const BULLET_SPEED: f32 = 3.0; // Doubled from 0.5 to 1.0 meters per second
+const BULLET_SPEED: f32 = 6.0; // Doubled from 0.5 to 1.0 meters per second
 const BULLET_LIFETIME: f32 = 10.0; // 10 meters at 1.0 m/s = 10 seconds
 const BULLET_SIZE: f32 = 0.1; // Size of the bullet
 const BULLET_LIGHT_INTENSITY: f32 = 300000.0;
@@ -40,19 +40,19 @@ const GRID_LAYOUT: [[bool; GRID_SIZE]; GRID_SIZE] = [
     [true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true],
     [true, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true],
     [true, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true],
-    [true, false, false, true, true, true, true, true, true, true, true, true, true, true, true, true, true, false, false, true],
+    [true, false, false, true, true, true, true, true, false, false, true, true, true, true, true, true, true, false, false, true],
+    [true, false, false, false, false, true, false, false, false, false, true, false, false, false, false, false, false, false, false, true],
+    [true, false, false, false, false, true, false, false, false, false, true, false, false, false, false, false, false, false, false, true],
+    [true, false, false, false, false, true, false, false, false, false, true, false, false, false, false, false, false, false, false, true],
+    [true, false, false, false, false, true, false, false, false, false, true, false, false, false, false, false, false, false, false, true],
+    [true, false, false, false, false, true, true, true, true, true, true, true, false, false, false, false, false, false, false, true],
     [true, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true],
     [true, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true],
     [true, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true],
-    [true, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true],
-    [true, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true],
-    [true, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true],
-    [true, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true],
-    [true, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true],
-    [true, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true],
-    [true, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true],
-    [true, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true],
-    [true, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true],
+    [true, false, false, false, false, false, false, false, false, false, false, false, false, false, true, true, true, true, true, true],
+    [true, false, false, false, false, false, false, false, false, false, false, false, false, false, true, false, false, false, false, true],
+    [true, false, false, false, false, false, false, false, false, false, false, false, false, false, true, false, false, false, false, true],
+    [true, false, false, false, false, false, false, false, false, false, false, false, false, false, true, false, false, false, false, true],
     [true, false, false, true, true, true, true, true, true, true, true, true, true, true, true, true, true, false, false, true],
     [true, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true],
     [true, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true],
@@ -246,7 +246,8 @@ fn setup(
     commands.spawn(DirectionalLightBundle {
         directional_light: DirectionalLight {
             shadows_enabled: true,
-            illuminance: 1000.0, // Reduced from default
+            illuminance: 200.0, // Reduced from 1000.0 to make it darker
+            color: Color::rgb(0.5, 0.5, 1.0), // Slightly blueish tint
             ..default()
         },
         transform: Transform::from_xyz(4.0, 8.0, 4.0).looking_at(Vec3::ZERO, Vec3::Y),

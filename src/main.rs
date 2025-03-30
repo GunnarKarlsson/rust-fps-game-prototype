@@ -236,7 +236,7 @@ fn setup(
     commands.spawn(PointLightBundle {
         point_light: PointLight {
             color: Color::rgb(1.0, 0.0, 0.0), // Pure orange light
-            intensity: 500000.0, // Increased from 2000.0
+            intensity: 200000.0, // Increased from 2000.0
             range: 5.0,
             shadows_enabled: true,
             ..default()
@@ -253,7 +253,7 @@ fn setup(
     commands.spawn(PointLightBundle {
         point_light: PointLight {
             color: Color::rgb(0.0, 0.0, 1.0), // Pure blue light
-            intensity: 500000.0, // Increased from 2000.0
+            intensity: 200000.0, // Increased from 2000.0
             range: 5.0,
             shadows_enabled: true,
             ..default()

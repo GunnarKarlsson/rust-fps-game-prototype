@@ -52,36 +52,37 @@ fn spawn_wall(
     grid_y: usize,
     side: WallSide,
 ) {
+    let grid_offset = (GRID_SIZE as f32 * TILE_SIZE) / 2.0;
     let (position, dimensions) = match side {
         WallSide::North => (
             Vec3::new(
-                (grid_x as f32 * TILE_SIZE) + (TILE_SIZE / 2.0),
+                (grid_x as f32 * TILE_SIZE) + (TILE_SIZE / 2.0) - grid_offset,
                 0.0,
-                (grid_y as f32 * TILE_SIZE) + TILE_SIZE,
+                (grid_y as f32 * TILE_SIZE) + TILE_SIZE - grid_offset,
             ),
             Vec3::new(TILE_SIZE, 1.0, 0.1),
         ),
         WallSide::South => (
             Vec3::new(
-                (grid_x as f32 * TILE_SIZE) + (TILE_SIZE / 2.0),
+                (grid_x as f32 * TILE_SIZE) + (TILE_SIZE / 2.0) - grid_offset,
                 0.0,
-                grid_y as f32 * TILE_SIZE,
+                grid_y as f32 * TILE_SIZE - grid_offset,
             ),
             Vec3::new(TILE_SIZE, 1.0, 0.1),
         ),
         WallSide::East => (
             Vec3::new(
-                (grid_x as f32 * TILE_SIZE) + TILE_SIZE,
+                (grid_x as f32 * TILE_SIZE) + TILE_SIZE - grid_offset,
                 0.0,
-                (grid_y as f32 * TILE_SIZE) + (TILE_SIZE / 2.0),
+                (grid_y as f32 * TILE_SIZE) + (TILE_SIZE / 2.0) - grid_offset,
             ),
             Vec3::new(0.1, 1.0, TILE_SIZE),
         ),
         WallSide::West => (
             Vec3::new(
-                grid_x as f32 * TILE_SIZE,
+                grid_x as f32 * TILE_SIZE - grid_offset,
                 0.0,
-                (grid_y as f32 * TILE_SIZE) + (TILE_SIZE / 2.0),
+                (grid_y as f32 * TILE_SIZE) + (TILE_SIZE / 2.0) - grid_offset,
             ),
             Vec3::new(0.1, 1.0, TILE_SIZE),
         ),

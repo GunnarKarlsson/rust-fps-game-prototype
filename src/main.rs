@@ -779,6 +779,17 @@ fn update_bullets(
             continue;
         }
 
+        // Check for floor and ceiling collisions
+        if new_position.y <= -0.5 || new_position.y >= 1.5 {
+            // Spawn particle explosion at collision point
+            spawn_particle_explosion(&mut commands, &mut meshes, &mut materials, transform.translation);
+            
+            // Remove bullet and its light
+            commands.entity(bullet.light).despawn();
+            commands.entity(entity).despawn();
+            continue;
+        }
+
         // Update position if no collision
         transform.translation = new_position;
 

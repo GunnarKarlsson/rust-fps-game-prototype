@@ -2,7 +2,7 @@ use bevy::{
     prelude::*,
     input::{mouse::MouseMotion, keyboard::KeyCode, ButtonInput},
     window::WindowMode,
-    math::primitives::Cuboid,
+    math::primitives::{Cuboid, Plane3d},
 };
 
 const PLAYER_SPEED: f32 = 5.0;
@@ -34,8 +34,9 @@ fn setup(
     mut materials: ResMut<Assets<StandardMaterial>>,
     asset_server: Res<AssetServer>,
 ) {
-    // Load the wall texture
+    // Load the textures
     let wall_texture = asset_server.load("stone.png");
+    let floor_texture = asset_server.load("floor.png");
     
     // Create the wall
     commands.spawn(PbrBundle {
@@ -45,6 +46,19 @@ fn setup(
             ..default()
         }),
         transform: Transform::from_xyz(0.0, 0.0, -5.0),
+        ..default()
+    });
+
+    // Create the floor
+    commands.spawn(PbrBundle {
+        mesh: meshes.add(Mesh::from(Plane3d::new(Vec3::Y))),
+        material: materials.add(StandardMaterial {
+            base_color_texture: Some(floor_texture),
+            base_color: Color::WHITE,
+            ..default()
+        }),
+        transform: Transform::from_xyz(0.0, -0.5, 0.0)  // Move down to be at the base of the wall
+            .with_scale(Vec3::new(10.0, 1.0, 10.0)),
         ..default()
     });
 

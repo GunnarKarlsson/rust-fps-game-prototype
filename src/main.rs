@@ -119,6 +119,20 @@ struct Bullet {
     light: Entity, // Reference to the light entity
 }
 
+#[derive(Component)]
+struct Particle {
+    velocity: Vec3,
+    lifetime: f32,
+    light: Entity,
+}
+
+const PARTICLE_COUNT: usize = 12;
+const PARTICLE_SIZE: f32 = 0.05;
+const PARTICLE_SPEED: f32 = 3.0;
+const PARTICLE_LIFETIME: f32 = 0.5;
+const PARTICLE_LIGHT_INTENSITY: f32 = 100000.0;
+const PARTICLE_LIGHT_RANGE: f32 = 2.0;
+
 fn spawn_wall(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
@@ -204,6 +218,7 @@ fn main() {
                 quit_system,
                 shoot_bullet,
                 update_bullets,
+                update_particles,
             )
                 .chain(),
         )
@@ -647,15 +662,125 @@ fn shoot_bullet(
     }
 }
 
+fn spawn_particle_explosion(
+    commands: &mut Commands,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
+    position: Vec3,
+) {
+    for i in 0..PARTICLE_COUNT {
+        // Calculate random direction in a sphere
+        let angle = (i as f32 / PARTICLE_COUNT as f32) * 2.0 * std::f32::consts::PI;
+        let pitch = (rand::random::<f32>() - 0.5) * std::f32::consts::PI;
+        let direction = Vec3::new(
+            pitch.cos() * angle.cos(),
+            pitch.sin(),
+            pitch.cos() * angle.sin(),
+        );
+
+        // Spawn particle
+        let particle_entity = commands
+            .spawn((
+                PbrBundle {
+                    mesh: meshes.add(Mesh::from(Cuboid::new(
+                        PARTICLE_SIZE,
+                        PARTICLE_SIZE,
+                        PARTICLE_SIZE,
+                    ))),
+                    material: materials.add(StandardMaterial {
+                        base_color: Color::rgb(1.0, 0.0, 0.0),
+                        emissive: Color::rgb(1.0, 0.0, 0.0) * 50.0,
+                        ..default()
+                    }),
+                    transform: Transform::from_translation(position),
+                    ..default()
+                },
+                Particle {
+                    velocity: direction * PARTICLE_SPEED,
+                    lifetime: PARTICLE_LIFETIME,
+                    light: Entity::PLACEHOLDER,
+                },
+            ))
+            .id();
+
+        // Spawn light for the particle
+        let light_entity = commands
+            .spawn(PointLightBundle {
+                point_light: PointLight {
+                    color: Color::rgb(1.0, 0.0, 0.0),
+                    intensity: PARTICLE_LIGHT_INTENSITY,
+                    range: PARTICLE_LIGHT_RANGE,
+                    shadows_enabled: true,
+                    ..default()
+                },
+                transform: Transform::from_translation(position),
+                ..default()
+            })
+            .id();
+
+        // Update particle with light entity reference
+        if let Some(mut particle) = commands.get_entity(particle_entity) {
+            particle.insert(Particle {
+                velocity: direction * PARTICLE_SPEED,
+                lifetime: PARTICLE_LIFETIME,
+                light: light_entity,
+            });
+        }
+    }
+}
+
+fn update_particles(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut particle_query: Query<(Entity, &mut Transform, &mut Particle)>,
+    mut light_query: Query<&mut Transform, Without<Particle>>,
+) {
+    for (entity, mut transform, mut particle) in particle_query.iter_mut() {
+        // Update position
+        transform.translation += particle.velocity * time.delta_seconds();
+
+        // Update light position
+        if let Ok(mut light_transform) = light_query.get_mut(particle.light) {
+            light_transform.translation = transform.translation;
+        }
+
+        // Update lifetime
+        particle.lifetime -= time.delta_seconds();
+
+        // Remove particle and its light if lifetime is up
+        if particle.lifetime <= 0.0 {
+            commands.entity(particle.light).despawn();
+            commands.entity(entity).despawn();
+        }
+    }
+}
+
 fn update_bullets(
     mut commands: Commands,
     time: Res<Time>,
     mut bullet_query: Query<(Entity, &mut Transform, &mut Bullet)>,
     mut light_query: Query<&mut Transform, Without<Bullet>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     for (entity, mut transform, mut bullet) in bullet_query.iter_mut() {
         // Update position
-        transform.translation += bullet.velocity * time.delta_seconds();
+        let new_position = transform.translation + bullet.velocity * time.delta_seconds();
+        
+        // Check for wall collision
+        let (grid_x, grid_z) = world_to_grid(new_position);
+        if is_wall_at_position(grid_x, grid_z) {
+            // Spawn particle explosion at collision point
+            spawn_particle_explosion(&mut commands, &mut meshes, &mut materials, transform.translation);
+            
+            // Remove bullet and its light
+            commands.entity(bullet.light).despawn();
+            commands.entity(entity).despawn();
+            continue;
+        }
+
+        // Update position if no collision
+        transform.translation = new_position;
 
         // Update light position
         if let Ok(mut light_transform) = light_query.get_mut(bullet.light) {

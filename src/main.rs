@@ -13,6 +13,7 @@ const PLAYER_SPEED: f32 = 5.0;
 const MOUSE_SENSITIVITY: f32 = 0.002;
 const GRID_SIZE: usize = 10;
 const TILE_SIZE: f32 = 1.0;
+const PLAYER_RADIUS: f32 = 0.3; // Player's collision radius
 
 #[derive(Component)]
 struct Wall {
@@ -33,10 +34,10 @@ enum WallSide {
 const GRID_LAYOUT: [[bool; GRID_SIZE]; GRID_SIZE] = [
     [false, false, true, true, true, true, true, true, false, false],
     [false, false, false, false, false, false, false, false, false, false],
-    [true, false, true, false, false, false, false, true, false, true],
-    [true, false, false, true, false, false, false, false, false, true],
-    [true, false, false, false, true, true, false, false, false, true],
-    [true, false, false, false, true, true, false, false, false, true],
+    [false, false, false, false, false, false, false, true, false, true],
+    [true, false, false, false, false, false, false, false, false, true],
+    [true, false, false, false, false, false, false, false, false, true],
+    [true, false, false, false, true, false, false, false, false, true],
     [true, false, false, false, false, false, false, false, false, true],
     [true, false, true, false, false, false, false, true, false, true],
     [false, false, false, false, false, false, false, false, false, false],
@@ -202,13 +203,13 @@ fn setup(
     // Create the camera
     commands.spawn((
         Camera3dBundle {
-            transform: Transform::from_xyz(0.0, 0.5, 0.0).looking_at(Vec3::new(0.0, 1.6, -2.0), Vec3::Y),
+            transform: Transform::from_xyz(0.0, 0.5, 2.0).looking_at(Vec3::new(0.0, 1.6, 0.0), Vec3::Y),
             ..default()
         },
         PlayerCamera {
             yaw: 0.0,
             pitch: 0.0,
-            position: Vec3::new(0.0, 0.5, 0.0),
+            position: Vec3::new(0.0, 0.5, 2.0),
         },
     ));
 }
@@ -220,6 +221,52 @@ struct PlayerCamera {
     position: Vec3,
 }
 
+fn world_to_grid(world_pos: Vec3) -> (usize, usize) {
+    let grid_offset = (GRID_SIZE as f32 * TILE_SIZE) / 2.0;
+    let x = ((world_pos.x + grid_offset) / TILE_SIZE).floor() as usize;
+    let z = ((world_pos.z + grid_offset) / TILE_SIZE).floor() as usize;
+    (x, z)
+}
+
+fn is_wall_at_position(x: usize, z: usize) -> bool {
+    if x >= GRID_SIZE || z >= GRID_SIZE {
+        return true; // Treat out of bounds as walls
+    }
+    GRID_LAYOUT[z][x]
+}
+
+fn check_collision(current_pos: Vec3, movement: Vec3) -> bool {
+    let grid_offset = (GRID_SIZE as f32 * TILE_SIZE) / 2.0;
+    let (current_x, current_z) = world_to_grid(current_pos);
+    
+    // Check multiple points along the movement vector
+    let steps = 4;
+    for i in 0..=steps {
+        let t = i as f32 / steps as f32;
+        let check_pos = current_pos + movement * t;
+        
+        // Check a few points around the player's radius
+        let radius_points = [
+            Vec3::new(PLAYER_RADIUS, 0.0, 0.0),
+            Vec3::new(-PLAYER_RADIUS, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, PLAYER_RADIUS),
+            Vec3::new(0.0, 0.0, -PLAYER_RADIUS),
+        ];
+        
+        for offset in radius_points.iter() {
+            let check_point = check_pos + *offset;
+            let (grid_x, grid_z) = world_to_grid(check_point);
+            
+            if is_wall_at_position(grid_x, grid_z) {
+                println!("Collision detected at grid position: ({}, {})", grid_x, grid_z);
+                return true;
+            }
+        }
+    }
+    
+    false
+}
+
 fn player_movement(
     keyboard: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
@@ -229,16 +276,16 @@ fn player_movement(
     
     let mut movement = Vec3::ZERO;
     
-    if keyboard.pressed(KeyCode::KeyW) {
+    if keyboard.pressed(KeyCode::KeyW) || keyboard.pressed(KeyCode::ArrowUp) {
         movement += Vec3::new(0.0, 0.0, -1.0);
     }
-    if keyboard.pressed(KeyCode::KeyS) {
+    if keyboard.pressed(KeyCode::KeyS) || keyboard.pressed(KeyCode::ArrowDown) {
         movement += Vec3::new(0.0, 0.0, 1.0);
     }
-    if keyboard.pressed(KeyCode::KeyA) {
+    if keyboard.pressed(KeyCode::KeyA) || keyboard.pressed(KeyCode::ArrowLeft) {
         movement += Vec3::new(-1.0, 0.0, 0.0);
     }
-    if keyboard.pressed(KeyCode::KeyD) {
+    if keyboard.pressed(KeyCode::KeyD) || keyboard.pressed(KeyCode::ArrowRight) {
         movement += Vec3::new(1.0, 0.0, 0.0);
     }
 
@@ -246,8 +293,16 @@ fn player_movement(
         movement = movement.normalize();
         let rotation = Quat::from_axis_angle(Vec3::Y, camera.yaw);
         movement = rotation * movement;
-        camera.position += movement * PLAYER_SPEED * time.delta_seconds();
-        transform.translation = camera.position;
+        
+        // Calculate the movement for this frame
+        let frame_movement = movement * PLAYER_SPEED * time.delta_seconds();
+        
+        // Check for collisions before applying movement
+        if !check_collision(camera.position, frame_movement) {
+            camera.position += frame_movement;
+            transform.translation = camera.position;
+            println!("Player position: {:?}", camera.position);
+        }
     }
 }
 

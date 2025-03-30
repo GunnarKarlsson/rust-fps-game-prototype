@@ -202,7 +202,7 @@ fn main() {
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
                 mode: WindowMode::Windowed,
-                title: "Wolfenstein 3D Clone".to_string(),
+                title: "Wolfenstein 3D Rust".to_string(),
                 ..default()
             }),
             ..default()
@@ -472,8 +472,6 @@ fn is_wall_at_position(x: usize, z: usize) -> bool {
 }
 
 fn check_collision(current_pos: Vec3, movement: Vec3) -> bool {
-    let grid_offset = (GRID_SIZE as f32 * TILE_SIZE) / 2.0;
-    let (current_x, current_z) = world_to_grid(current_pos);
 
     // Check multiple points along the movement vector
     let steps = 4;
@@ -604,7 +602,7 @@ fn shoot_bullet(
     camera_query: Query<(&Transform, &PlayerCamera)>,
 ) {
     if keyboard.just_pressed(KeyCode::Space) {
-        let (transform, camera) = camera_query.single();
+        let (_transform, camera) = camera_query.single();
 
         // Calculate bullet direction based on camera rotation
         let rotation = Quat::from_axis_angle(Vec3::Y, camera.yaw)

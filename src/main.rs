@@ -16,6 +16,9 @@ const BULLET_LIFETIME: f32 = 10.0; // 10 meters at 1.0 m/s = 10 seconds
 const BULLET_SIZE: f32 = 0.1; // Size of the bullet
 const BULLET_LIGHT_INTENSITY: f32 = 300000.0;
 const BULLET_LIGHT_RANGE: f32 = 3.0;
+const ENEMY_SIZE: f32 = 0.3;
+const ENEMY_SPEED: f32 = 2.0;
+const ENEMY_COLLISION_RADIUS: f32 = 0.5; // Larger than PLAYER_RADIUS (0.3)
 
 #[derive(Component)]
 struct Wall {}
@@ -133,6 +136,12 @@ const PARTICLE_LIFETIME: f32 = 0.5;
 const PARTICLE_LIGHT_INTENSITY: f32 = 100000.0;
 const PARTICLE_LIGHT_RANGE: f32 = 2.0;
 
+#[derive(Component)]
+struct Enemy {
+    velocity: Vec3,
+    last_direction_change: f32,
+}
+
 fn spawn_wall(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
@@ -197,17 +206,41 @@ fn spawn_wall(
     ));
 }
 
+fn spawn_enemy(
+    commands: &mut Commands,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
+    position: Vec3,
+) {
+    commands.spawn((
+        PbrBundle {
+            mesh: meshes.add(Mesh::from(Cuboid::new(ENEMY_SIZE, ENEMY_SIZE, ENEMY_SIZE))),
+            material: materials.add(StandardMaterial {
+                base_color: Color::rgb(1.0, 0.0, 0.0), // Red color
+                emissive: Color::rgb(1.0, 0.0, 0.0) * 2.0, // Slight glow
+                ..default()
+            }),
+            transform: Transform::from_translation(position),
+            ..default()
+        },
+        Enemy {
+            velocity: Vec3::new(0.0, 0.0, -1.0) * ENEMY_SPEED, // Start moving forward
+            last_direction_change: 0.0,
+        },
+    ));
+}
+
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
                 mode: WindowMode::Windowed,
-                title: "Wolfenstein 3D Rust".to_string(),
+                title: "Wolfenstein 3D Clone".to_string(),
                 ..default()
             }),
             ..default()
         }))
-        .insert_resource(ClearColor(Color::rgb(0.4, 0.6, 1.0))) // Sky blue background
+        .insert_resource(ClearColor(Color::rgb(0.4, 0.6, 1.0)))
         .add_systems(Startup, (setup, center_cursor))
         .add_systems(
             Update,
@@ -219,6 +252,7 @@ fn main() {
                 shoot_bullet,
                 update_bullets,
                 update_particles,
+                update_enemies,
             )
                 .chain(),
         )
@@ -448,6 +482,18 @@ fn setup(
             position: Vec3::new(0.0, 0.5, 2.0),
         },
     ));
+
+    // Spawn an enemy in an open space
+    spawn_enemy(
+        &mut commands,
+        &mut meshes,
+        &mut materials,
+        Vec3::new(
+            (2.0 * TILE_SIZE) - grid_offset,
+            0.5, // 0.5 meters above the floor
+            (2.0 * TILE_SIZE) - grid_offset,
+        ),
+    );
 }
 
 #[derive(Component)]
@@ -501,6 +547,38 @@ fn check_collision(current_pos: Vec3, movement: Vec3) -> bool {
         }
     }
 
+    false
+}
+
+fn check_enemy_collision(current_pos: Vec3, movement: Vec3) -> bool {
+    // Check multiple points along the movement vector
+    let steps = 4;
+    for i in 0..=steps {
+        let t = i as f32 / steps as f32;
+        let check_pos = current_pos + movement * t;
+
+        // Check more points around the enemy's radius for better collision detection
+        let radius_points = [
+            Vec3::new(ENEMY_COLLISION_RADIUS, 0.0, 0.0),
+            Vec3::new(-ENEMY_COLLISION_RADIUS, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, ENEMY_COLLISION_RADIUS),
+            Vec3::new(0.0, 0.0, -ENEMY_COLLISION_RADIUS),
+            // Add diagonal points for better coverage
+            Vec3::new(ENEMY_COLLISION_RADIUS * 0.7, 0.0, ENEMY_COLLISION_RADIUS * 0.7),
+            Vec3::new(-ENEMY_COLLISION_RADIUS * 0.7, 0.0, ENEMY_COLLISION_RADIUS * 0.7),
+            Vec3::new(ENEMY_COLLISION_RADIUS * 0.7, 0.0, -ENEMY_COLLISION_RADIUS * 0.7),
+            Vec3::new(-ENEMY_COLLISION_RADIUS * 0.7, 0.0, -ENEMY_COLLISION_RADIUS * 0.7),
+        ];
+
+        for offset in radius_points.iter() {
+            let check_point = check_pos + *offset;
+            let (grid_x, grid_z) = world_to_grid(check_point);
+
+            if is_wall_at_position(grid_x, grid_z) {
+                return true;
+            }
+        }
+    }
     false
 }
 
@@ -757,13 +835,31 @@ fn update_bullets(
     mut commands: Commands,
     time: Res<Time>,
     mut bullet_query: Query<(Entity, &mut Transform, &mut Bullet)>,
-    mut light_query: Query<&mut Transform, Without<Bullet>>,
+    mut light_query: Query<&mut Transform, (Without<Bullet>, Without<Enemy>)>,
+    enemy_query: Query<(Entity, &Transform), (With<Enemy>, Without<Bullet>)>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     for (entity, mut transform, mut bullet) in bullet_query.iter_mut() {
         // Update position
         let new_position = transform.translation + bullet.velocity * time.delta_seconds();
+        
+        // Check for enemy collision
+        for (enemy_entity, enemy_transform) in enemy_query.iter() {
+            let distance = enemy_transform.translation.distance(transform.translation);
+            if distance < (ENEMY_SIZE + BULLET_SIZE) {
+                // Spawn particle explosion at enemy position
+                spawn_particle_explosion(&mut commands, &mut meshes, &mut materials, enemy_transform.translation);
+                
+                // Remove the enemy
+                commands.entity(enemy_entity).despawn();
+                
+                // Remove bullet and its light
+                commands.entity(bullet.light).despawn();
+                commands.entity(entity).despawn();
+                continue;
+            }
+        }
         
         // Check for wall collision
         let (grid_x, grid_z) = world_to_grid(new_position);
@@ -803,6 +899,36 @@ fn update_bullets(
         if bullet.lifetime <= 0.0 {
             commands.entity(bullet.light).despawn();
             commands.entity(entity).despawn();
+        }
+    }
+}
+
+fn update_enemies(
+    mut enemy_query: Query<(&mut Transform, &mut Enemy)>,
+    time: Res<Time>,
+) {
+    for (mut transform, mut enemy) in enemy_query.iter_mut() {
+        // Calculate new position
+        let movement = enemy.velocity * time.delta_seconds();
+        
+        // Check for wall collision using the new collision function
+        if check_enemy_collision(transform.translation, movement) {
+            // Choose random new direction (left or right relative to current direction)
+            let current_direction = enemy.velocity.normalize();
+            let random_turn = if rand::random::<bool>() {
+                // Turn left
+                Quat::from_rotation_y(std::f32::consts::FRAC_PI_2)
+            } else {
+                // Turn right
+                Quat::from_rotation_y(-std::f32::consts::FRAC_PI_2)
+            };
+            
+            let new_direction = random_turn * current_direction;
+            enemy.velocity = new_direction * ENEMY_SPEED;
+            enemy.last_direction_change = time.elapsed_seconds();
+        } else {
+            // Update position if no collision
+            transform.translation += movement;
         }
     }
 }

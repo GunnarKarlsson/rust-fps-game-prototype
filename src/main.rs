@@ -14,6 +14,11 @@ const MOUSE_SENSITIVITY: f32 = 0.002;
 const GRID_SIZE: usize = 10;
 const TILE_SIZE: f32 = 1.0;
 const PLAYER_RADIUS: f32 = 0.3; // Player's collision radius
+const BULLET_SPEED: f32 = 3.0; // Doubled from 0.5 to 1.0 meters per second
+const BULLET_LIFETIME: f32 = 10.0; // 10 meters at 1.0 m/s = 10 seconds
+const BULLET_SIZE: f32 = 0.1; // Size of the bullet
+const BULLET_LIGHT_INTENSITY: f32 = 300000.0;
+const BULLET_LIGHT_RANGE: f32 = 3.0;
 
 #[derive(Component)]
 struct Wall {
@@ -43,6 +48,13 @@ const GRID_LAYOUT: [[bool; GRID_SIZE]; GRID_SIZE] = [
     [false, false, false, false, false, false, false, false, false, false],
     [false, true, true, true, true, true, true, true, true, false],
 ];
+
+#[derive(Component)]
+struct Bullet {
+    velocity: Vec3,
+    lifetime: f32,
+    light: Entity, // Reference to the light entity
+}
 
 fn spawn_wall(
     commands: &mut Commands,
@@ -125,6 +137,8 @@ fn main() {
             player_look,
             cursor_grab_system,
             quit_system,
+            shoot_bullet,
+            update_bullets,
         ).chain())
         .run();
 }
@@ -416,5 +430,87 @@ fn center_cursor(mut windows: Query<&mut Window>) {
 fn quit_system(keyboard: Res<ButtonInput<KeyCode>>) {
     if keyboard.just_pressed(KeyCode::KeyQ) {
         std::process::exit(0);
+    }
+}
+
+fn shoot_bullet(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    keyboard: Res<ButtonInput<KeyCode>>,
+    camera_query: Query<(&Transform, &PlayerCamera)>,
+) {
+    if keyboard.just_pressed(KeyCode::Space) {
+        let (transform, camera) = camera_query.single();
+        
+        // Calculate bullet direction based on camera rotation
+        let rotation = Quat::from_axis_angle(Vec3::Y, camera.yaw) * Quat::from_axis_angle(Vec3::X, camera.pitch);
+        let bullet_direction = rotation * -Vec3::Z; // Negative Z is forward in our coordinate system
+        
+        // Spawn bullet
+        let bullet_entity = commands.spawn((
+            PbrBundle {
+                mesh: meshes.add(Mesh::from(Cuboid::new(BULLET_SIZE, BULLET_SIZE, BULLET_SIZE))),
+                material: materials.add(StandardMaterial {
+                    base_color: Color::YELLOW,
+                    ..default()
+                }),
+                transform: Transform::from_translation(camera.position),
+                ..default()
+            },
+            Bullet {
+                velocity: bullet_direction * BULLET_SPEED,
+                lifetime: BULLET_LIFETIME,
+                light: Entity::PLACEHOLDER, // Will be updated after light spawn
+            },
+        )).id();
+
+        // Spawn light for the bullet
+        let light_entity = commands.spawn(PointLightBundle {
+            point_light: PointLight {
+                color: Color::rgb(1.0, 0.0, 0.0), // Red light
+                intensity: BULLET_LIGHT_INTENSITY,
+                range: BULLET_LIGHT_RANGE,
+                shadows_enabled: true,
+                ..default()
+            },
+            transform: Transform::from_translation(camera.position),
+            ..default()
+        }).id();
+
+        // Update bullet with light entity reference
+        if let Some(mut bullet) = commands.get_entity(bullet_entity) {
+            bullet.insert(Bullet {
+                velocity: bullet_direction * BULLET_SPEED,
+                lifetime: BULLET_LIFETIME,
+                light: light_entity,
+            });
+        }
+    }
+}
+
+fn update_bullets(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut bullet_query: Query<(Entity, &mut Transform, &mut Bullet)>,
+    mut light_query: Query<&mut Transform, Without<Bullet>>,
+) {
+    for (entity, mut transform, mut bullet) in bullet_query.iter_mut() {
+        // Update position
+        transform.translation += bullet.velocity * time.delta_seconds();
+        
+        // Update light position
+        if let Ok(mut light_transform) = light_query.get_mut(bullet.light) {
+            light_transform.translation = transform.translation;
+        }
+        
+        // Update lifetime
+        bullet.lifetime -= time.delta_seconds();
+        
+        // Remove bullet and its light if lifetime is up
+        if bullet.lifetime <= 0.0 {
+            commands.entity(bullet.light).despawn();
+            commands.entity(entity).despawn();
+        }
     }
 }

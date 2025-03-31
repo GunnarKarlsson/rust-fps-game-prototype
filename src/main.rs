@@ -19,6 +19,10 @@ const BULLET_LIGHT_RANGE: f32 = 3.0;
 const ENEMY_SIZE: f32 = 0.3;
 const ENEMY_SPEED: f32 = 2.0;
 const ENEMY_COLLISION_RADIUS: f32 = 0.5; // Larger than PLAYER_RADIUS (0.3)
+const ENEMY_SHOOT_RATE: f32 = 2.0; // Changed from 1.0 to 2.0 seconds between shots
+const ENEMY_BULLET_SPEED: f32 = 6.0; // Changed from 8.0 to 6.0 meters per second
+const ENEMY_BULLET_SIZE: f32 = 0.1;
+const ENEMY_BULLET_LIFETIME: f32 = 5.0;
 
 #[derive(Component)]
 struct Wall {}
@@ -126,7 +130,6 @@ struct Bullet {
 struct Particle {
     velocity: Vec3,
     lifetime: f32,
-    light: Entity,
 }
 
 const PARTICLE_COUNT: usize = 12;
@@ -140,6 +143,18 @@ const PARTICLE_LIGHT_RANGE: f32 = 2.0;
 struct Enemy {
     velocity: Vec3,
     last_direction_change: f32,
+    shoot_cooldown: f32,
+}
+
+#[derive(Component)]
+struct EnemyBullet {
+    velocity: Vec3,
+    lifetime: f32,
+}
+
+#[derive(Resource)]
+struct GameState {
+    is_game_over: bool,
 }
 
 fn spawn_wall(
@@ -216,18 +231,66 @@ fn spawn_enemy(
         PbrBundle {
             mesh: meshes.add(Mesh::from(Cuboid::new(ENEMY_SIZE, ENEMY_SIZE, ENEMY_SIZE))),
             material: materials.add(StandardMaterial {
-                base_color: Color::rgb(1.0, 0.0, 0.0), // Red color
-                emissive: Color::rgb(1.0, 0.0, 0.0) * 2.0, // Slight glow
+                base_color: Color::rgb(1.0, 0.0, 0.0),
+                emissive: Color::rgb(1.0, 0.0, 0.0) * 2.0,
                 ..default()
             }),
             transform: Transform::from_translation(position),
             ..default()
         },
         Enemy {
-            velocity: Vec3::new(0.0, 0.0, -1.0) * ENEMY_SPEED, // Start moving forward
+            velocity: Vec3::new(0.0, 0.0, -1.0) * ENEMY_SPEED,
             last_direction_change: 0.0,
+            shoot_cooldown: 0.0,
         },
     ));
+}
+
+fn reset_game(
+    commands: &mut Commands,
+    mut game_state: ResMut<GameState>,
+    mut player_query: Query<(&mut Transform, &mut PlayerCamera)>,
+    enemy_query: Query<Entity, With<Enemy>>,
+    bullet_query: Query<Entity, Or<(With<Bullet>, With<EnemyBullet>)>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    // Reset game state
+    game_state.is_game_over = false;
+
+    // Reset player position and rotation
+    if let Ok((mut transform, mut camera)) = player_query.get_single_mut() {
+        camera.position = Vec3::new(0.0, 0.5, 2.0);
+        camera.yaw = 0.0;
+        camera.pitch = 0.0;
+        transform.translation = camera.position;
+        transform.rotation = Quat::IDENTITY;
+    }
+
+    // Remove all existing enemies
+    for entity in enemy_query.iter() {
+        commands.entity(entity).despawn();
+    }
+
+    // Remove all bullets
+    for entity in bullet_query.iter() {
+        commands.entity(entity).despawn();
+    }
+
+    // Calculate grid offset for enemy spawn position
+    let grid_offset = (GRID_SIZE as f32 * TILE_SIZE) / 2.0;
+
+    // Spawn new enemy at starting position
+    spawn_enemy(
+        commands,
+        &mut meshes,
+        &mut materials,
+        Vec3::new(
+            (2.0 * TILE_SIZE) - grid_offset,
+            0.5,
+            (2.0 * TILE_SIZE) - grid_offset,
+        ),
+    );
 }
 
 fn main() {
@@ -241,20 +304,24 @@ fn main() {
             ..default()
         }))
         .insert_resource(ClearColor(Color::rgb(0.4, 0.6, 1.0)))
+        .insert_resource(GameState { is_game_over: false })
         .add_systems(Startup, (setup, center_cursor))
         .add_systems(
             Update,
             (
-                player_movement,
-                player_look,
-                cursor_grab_system,
-                quit_system,
-                shoot_bullet,
+                player_movement.run_if(not(|state: Res<GameState>| state.is_game_over)),
+                player_look.run_if(not(|state: Res<GameState>| state.is_game_over)),
+                cursor_grab_system.run_if(not(|state: Res<GameState>| state.is_game_over)),
+                shoot_bullet.run_if(not(|state: Res<GameState>| state.is_game_over)),
                 update_bullets,
                 update_particles,
                 update_enemies,
-            )
-                .chain(),
+                enemy_shooting,
+                update_enemy_bullets,
+                game_over_ui,
+                restart_system,
+                quit_system,
+            ).chain(),
         )
         .run();
 }
@@ -755,53 +822,26 @@ fn spawn_particle_explosion(
         );
 
         // Spawn particle
-        let particle_entity = commands
-            .spawn((
-                PbrBundle {
-                    mesh: meshes.add(Mesh::from(Cuboid::new(
-                        PARTICLE_SIZE,
-                        PARTICLE_SIZE,
-                        PARTICLE_SIZE,
-                    ))),
-                    material: materials.add(StandardMaterial {
-                        base_color: Color::rgb(1.0, 0.0, 0.0),
-                        emissive: Color::rgb(1.0, 0.0, 0.0) * 50.0,
-                        ..default()
-                    }),
-                    transform: Transform::from_translation(position),
+        commands.spawn((
+            PbrBundle {
+                mesh: meshes.add(Mesh::from(Cuboid::new(
+                    PARTICLE_SIZE,
+                    PARTICLE_SIZE,
+                    PARTICLE_SIZE,
+                ))),
+                material: materials.add(StandardMaterial {
+                    base_color: Color::rgb(1.0, 0.0, 0.0),
+                    emissive: Color::rgb(1.0, 0.0, 0.0) * 50.0,
                     ..default()
-                },
-                Particle {
-                    velocity: direction * PARTICLE_SPEED,
-                    lifetime: PARTICLE_LIFETIME,
-                    light: Entity::PLACEHOLDER,
-                },
-            ))
-            .id();
-
-        // Spawn light for the particle
-        let light_entity = commands
-            .spawn(PointLightBundle {
-                point_light: PointLight {
-                    color: Color::rgb(1.0, 0.0, 0.0),
-                    intensity: PARTICLE_LIGHT_INTENSITY,
-                    range: PARTICLE_LIGHT_RANGE,
-                    shadows_enabled: true,
-                    ..default()
-                },
+                }),
                 transform: Transform::from_translation(position),
                 ..default()
-            })
-            .id();
-
-        // Update particle with light entity reference
-        if let Some(mut particle) = commands.get_entity(particle_entity) {
-            particle.insert(Particle {
+            },
+            Particle {
                 velocity: direction * PARTICLE_SPEED,
                 lifetime: PARTICLE_LIFETIME,
-                light: light_entity,
-            });
-        }
+            },
+        ));
     }
 }
 
@@ -809,23 +849,16 @@ fn update_particles(
     mut commands: Commands,
     time: Res<Time>,
     mut particle_query: Query<(Entity, &mut Transform, &mut Particle)>,
-    mut light_query: Query<&mut Transform, Without<Particle>>,
 ) {
     for (entity, mut transform, mut particle) in particle_query.iter_mut() {
         // Update position
         transform.translation += particle.velocity * time.delta_seconds();
 
-        // Update light position
-        if let Ok(mut light_transform) = light_query.get_mut(particle.light) {
-            light_transform.translation = transform.translation;
-        }
-
         // Update lifetime
         particle.lifetime -= time.delta_seconds();
 
-        // Remove particle and its light if lifetime is up
+        // Remove particle if lifetime is up
         if particle.lifetime <= 0.0 {
-            commands.entity(particle.light).despawn();
             commands.entity(entity).despawn();
         }
     }
@@ -930,5 +963,167 @@ fn update_enemies(
             // Update position if no collision
             transform.translation += movement;
         }
+    }
+}
+
+fn has_line_of_sight(enemy_pos: Vec3, player_pos: Vec3) -> bool {
+    let direction = player_pos - enemy_pos;
+    let distance = direction.length();
+    let ray_steps = (distance / 0.5).ceil() as i32; // Check every 0.5 units
+    
+    for i in 0..ray_steps {
+        let t = i as f32 / ray_steps as f32;
+        let check_pos = enemy_pos + direction * t;
+        let (grid_x, grid_z) = world_to_grid(check_pos);
+        
+        if is_wall_at_position(grid_x, grid_z) {
+            return false;
+        }
+    }
+    true
+}
+
+fn enemy_shooting(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut enemy_query: Query<(&Transform, &mut Enemy)>,
+    player_query: Query<&Transform, With<PlayerCamera>>,
+    time: Res<Time>,
+    game_state: Res<GameState>,
+) {
+    if game_state.is_game_over {
+        return;
+    }
+
+    let player_transform = player_query.single();
+    
+    for (enemy_transform, mut enemy) in enemy_query.iter_mut() {
+        enemy.shoot_cooldown -= time.delta_seconds();
+        
+        if enemy.shoot_cooldown <= 0.0 && has_line_of_sight(enemy_transform.translation, player_transform.translation) {
+            // Reset cooldown
+            enemy.shoot_cooldown = ENEMY_SHOOT_RATE;
+            
+            // Calculate direction to player
+            let direction = (player_transform.translation - enemy_transform.translation).normalize();
+            
+            // Spawn enemy bullet
+            commands.spawn((
+                PbrBundle {
+                    mesh: meshes.add(Mesh::from(Cuboid::new(
+                        ENEMY_BULLET_SIZE,
+                        ENEMY_BULLET_SIZE,
+                        ENEMY_BULLET_SIZE,
+                    ))),
+                    material: materials.add(StandardMaterial {
+                        base_color: Color::rgb(1.0, 1.0, 0.0), // Yellow color
+                        emissive: Color::rgb(1.0, 1.0, 0.0) * 50.0,
+                        ..default()
+                    }),
+                    transform: Transform::from_translation(enemy_transform.translation),
+                    ..default()
+                },
+                EnemyBullet {
+                    velocity: direction * ENEMY_BULLET_SPEED,
+                    lifetime: ENEMY_BULLET_LIFETIME,
+                },
+            ));
+        }
+    }
+}
+
+fn update_enemy_bullets(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut bullet_query: Query<(Entity, &mut Transform, &mut EnemyBullet)>,
+    player_query: Query<&Transform, (With<PlayerCamera>, Without<EnemyBullet>)>,
+    mut game_state: ResMut<GameState>,
+) {
+    let player_transform = player_query.single();
+    
+    for (entity, mut transform, mut bullet) in bullet_query.iter_mut() {
+        // Update position
+        let new_position = transform.translation + bullet.velocity * time.delta_seconds();
+        
+        // Check for player collision
+        let distance = player_transform.translation.distance(transform.translation);
+        if distance < (PLAYER_RADIUS + ENEMY_BULLET_SIZE) {
+            game_state.is_game_over = true;
+            commands.entity(entity).despawn();
+            continue;
+        }
+        
+        // Check for wall collision
+        let (grid_x, grid_z) = world_to_grid(new_position);
+        if is_wall_at_position(grid_x, grid_z) {
+            commands.entity(entity).despawn();
+            continue;
+        }
+        
+        // Update position if no collision
+        transform.translation = new_position;
+        
+        // Update lifetime
+        bullet.lifetime -= time.delta_seconds();
+        if bullet.lifetime <= 0.0 {
+            commands.entity(entity).despawn();
+        }
+    }
+}
+
+fn game_over_ui(
+    mut commands: Commands,
+    game_state: Res<GameState>,
+    query: Query<Entity, With<Text>>,
+) {
+    if game_state.is_game_over && query.is_empty() {
+        commands.spawn(
+            TextBundle::from_section(
+                "Game Over\nPress P to Play Again\nPress Q to Exit",
+                TextStyle {
+                    font_size: 50.0,
+                    color: Color::RED,
+                    ..default()
+                },
+            )
+            .with_style(Style {
+                position_type: PositionType::Absolute,
+                top: Val::Px(100.0),
+                left: Val::Auto,
+                right: Val::Auto,
+                ..default()
+            }),
+        );
+    }
+}
+
+fn restart_system(
+    mut commands: Commands,
+    keyboard: Res<ButtonInput<KeyCode>>,
+    game_state: ResMut<GameState>,
+    player_query: Query<(&mut Transform, &mut PlayerCamera)>,
+    enemy_query: Query<Entity, With<Enemy>>,
+    bullet_query: Query<Entity, Or<(With<Bullet>, With<EnemyBullet>)>>,
+    text_query: Query<Entity, With<Text>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    if game_state.is_game_over && keyboard.just_pressed(KeyCode::KeyP) {
+        // Remove game over text
+        for entity in text_query.iter() {
+            commands.entity(entity).despawn();
+        }
+
+        // Reset the game
+        reset_game(
+            &mut commands,
+            game_state,
+            player_query,
+            enemy_query,
+            bullet_query,
+            meshes,
+            materials,
+        );
     }
 }

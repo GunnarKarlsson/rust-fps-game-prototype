@@ -245,27 +245,32 @@ fn spawn_wall(
 
 fn spawn_enemy(
     commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
+    asset_server: &Res<AssetServer>,
     position: Vec3,
 ) {
+    error!("DEBUG: Starting enemy spawn at position: {:?}", position);
+    
+    // Create parent entity with Enemy component and transform
     commands.spawn((
-        PbrBundle {
-            mesh: meshes.add(Mesh::from(Cuboid::new(ENEMY_SIZE, ENEMY_SIZE, ENEMY_SIZE))),
-            material: materials.add(StandardMaterial {
-                base_color: Color::rgb(1.0, 0.0, 0.0),
-                emissive: Color::rgb(1.0, 0.0, 0.0) * 2.0,
-                ..default()
-            }),
-            transform: Transform::from_translation(position),
-            ..default()
-        },
         Enemy {
             velocity: Vec3::new(0.0, 0.0, -1.0) * ENEMY_SPEED,
             last_direction_change: 0.0,
             shoot_cooldown: 0.0,
         },
-    ));
+        SpatialBundle {
+            transform: Transform::from_xyz(position.x, position.y, position.z),
+            ..default()
+        },
+    ))
+    .with_children(|parent| {
+        error!("DEBUG: Attempting to spawn skull model as child");
+        parent.spawn(SceneBundle {
+            scene: asset_server.load("models/skull.glb#Scene0"),
+            transform: Transform::from_scale(Vec3::splat(2.0)),
+            ..default()
+        });
+        error!("DEBUG: Finished spawning skull model");
+    });
 }
 
 fn reset_game(
@@ -274,8 +279,7 @@ fn reset_game(
     mut player_query: Query<(&mut Transform, &mut PlayerCamera)>,
     enemy_query: Query<Entity, With<Enemy>>,
     bullet_query: Query<Entity, Or<(With<Bullet>, With<EnemyBullet>)>>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    asset_server: Res<AssetServer>,
     current_level: ResMut<CurrentLevel>,
 ) {
     // Reset game state
@@ -309,8 +313,7 @@ fn reset_game(
         // Spawn first enemy
         spawn_enemy(
             commands,
-            &mut meshes,
-            &mut materials,
+            &asset_server,
             Vec3::new(
                 (2.0 * TILE_SIZE) - grid_offset,
                 0.5,
@@ -318,23 +321,21 @@ fn reset_game(
             ),
         );
 
-        // Spawn second enemy in a more open area
+        // Spawn second enemy
         spawn_enemy(
             commands,
-            &mut meshes,
-            &mut materials,
+            &asset_server,
             Vec3::new(
                 (8.0 * TILE_SIZE) - grid_offset,
                 0.5,
-                (7.0 * TILE_SIZE) - grid_offset, // Changed from 4.0 to 8.0
+                (8.0 * TILE_SIZE) - grid_offset,
             ),
         );
     } else {
         // Spawn single enemy for level 1
         spawn_enemy(
             commands,
-            &mut meshes,
-            &mut materials,
+            &asset_server,
             Vec3::new(
                 (2.0 * TILE_SIZE) - grid_offset,
                 0.5,
@@ -609,8 +610,7 @@ fn setup(
     // Spawn an enemy in an open space
     spawn_enemy(
         &mut commands,
-        &mut meshes,
-        &mut materials,
+        &asset_server,
         Vec3::new(
             (2.0 * TILE_SIZE) - grid_offset,
             0.5, // 0.5 meters above the floor
@@ -661,10 +661,10 @@ fn check_collision(current_pos: Vec3, movement: Vec3) -> bool {
             let (grid_x, grid_z) = world_to_grid(check_point);
 
             if is_wall_at_position(grid_x, grid_z) {
-                println!(
-                    "Collision detected at grid position: ({}, {})",
-                    grid_x, grid_z
-                );
+                //println!(
+                //    "Collision detected at grid position: ({}, {})",
+                //    grid_x, grid_z
+                //);
                 return true;
             }
         }
@@ -739,7 +739,7 @@ fn player_movement(
         if !check_collision(camera.position, frame_movement) {
             camera.position += frame_movement;
             transform.translation = camera.position;
-            println!("Player position: {:?}", camera.position);
+            //println!("Player position: {:?}", camera.position);
         }
     }
 }
@@ -1175,8 +1175,7 @@ fn restart_system(
     enemy_query: Query<Entity, With<Enemy>>,
     bullet_query: Query<Entity, Or<(With<Bullet>, With<EnemyBullet>)>>,
     text_query: Query<Entity, With<Text>>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    asset_server: Res<AssetServer>,
     current_level: ResMut<CurrentLevel>,
 ) {
     if game_state.is_game_over && (
@@ -1195,9 +1194,8 @@ fn restart_system(
             player_query,
             enemy_query,
             bullet_query,
-            meshes,
-            materials,
-            current_level
+            asset_server,
+            current_level,
         );
     }
 }

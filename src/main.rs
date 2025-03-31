@@ -19,10 +19,15 @@ const BULLET_LIGHT_RANGE: f32 = 3.0;
 const ENEMY_SIZE: f32 = 0.3;
 const ENEMY_SPEED: f32 = 2.0;
 const ENEMY_COLLISION_RADIUS: f32 = 0.5; // Larger than PLAYER_RADIUS (0.3)
-const ENEMY_SHOOT_RATE: f32 = 2.0; // Changed from 1.0 to 2.0 seconds between shots
+const ENEMY_SHOOT_RATE: f32 = 4.0; // Changed from 1.0 to 2.0 seconds between shots
 const ENEMY_BULLET_SPEED: f32 = 6.0; // Changed from 8.0 to 6.0 meters per second
 const ENEMY_BULLET_SIZE: f32 = 0.1;
 const ENEMY_BULLET_LIFETIME: f32 = 5.0;
+
+// Add these constants for the minimap
+const MINIMAP_SIZE: f32 = 150.0; // Size in pixels
+const MINIMAP_PADDING: f32 = 20.0; // Padding from screen edges
+const MINIMAP_DOT_SIZE: f32 = 6.0; // Size of player/enemy dots
 
 #[derive(Component)]
 struct Wall {}
@@ -156,6 +161,17 @@ struct EnemyBullet {
 struct GameState {
     is_game_over: bool,
     has_won: bool,
+}
+
+// Add this component to identify minimap entities
+#[derive(Component)]
+struct Minimap;
+
+// Add this component for minimap dots
+#[derive(Component)]
+enum MinimapDot {
+    Player,
+    Enemy,
 }
 
 fn spawn_wall(
@@ -310,7 +326,7 @@ fn main() {
             is_game_over: false,
             has_won: false,
         })
-        .add_systems(Startup, (setup, center_cursor))
+        .add_systems(Startup, (setup, center_cursor, spawn_minimap))
         .add_systems(
             Update,
             (
@@ -323,10 +339,11 @@ fn main() {
                 update_enemies,
                 enemy_shooting,
                 update_enemy_bullets,
+                update_minimap,
                 game_over_ui,
                 restart_system,
                 quit_system,
-            ).chain(),
+            )
         )
         .run();
 }
@@ -1141,5 +1158,118 @@ fn restart_system(
             meshes,
             materials,
         );
+    }
+}
+
+// Add this function to spawn the minimap
+fn spawn_minimap(
+    mut commands: Commands,
+) {
+    // Spawn minimap background
+    commands.spawn((
+        NodeBundle {
+            style: Style {
+                position_type: PositionType::Absolute,
+                right: Val::Px(MINIMAP_PADDING),
+                bottom: Val::Px(MINIMAP_PADDING),
+                width: Val::Px(MINIMAP_SIZE),
+                height: Val::Px(MINIMAP_SIZE),
+                ..default()
+            },
+            background_color: BackgroundColor(Color::rgba(0.0, 0.0, 0.0, 0.5)),
+            ..default()
+        },
+        Minimap,
+    ));
+
+    // Spawn grid walls
+    for y in 0..GRID_SIZE {
+        for x in 0..GRID_SIZE {
+            if GRID_LAYOUT[y][x] {
+                let cell_size = MINIMAP_SIZE / GRID_SIZE as f32;
+                commands.spawn((
+                    NodeBundle {
+                        style: Style {
+                            position_type: PositionType::Absolute,
+                            right: Val::Px(MINIMAP_PADDING + MINIMAP_SIZE - (x as f32 + 1.0) * cell_size),
+                            bottom: Val::Px(MINIMAP_PADDING + MINIMAP_SIZE - (y as f32 + 1.0) * cell_size),
+                            width: Val::Px(cell_size),
+                            height: Val::Px(cell_size),
+                            ..default()
+                        },
+                        background_color: BackgroundColor(Color::rgba(0.5, 0.5, 0.5, 0.8)),
+                        ..default()
+                    },
+                    Minimap,
+                ));
+            }
+        }
+    }
+
+    // Spawn player dot
+    commands.spawn((
+        NodeBundle {
+            style: Style {
+                position_type: PositionType::Absolute,
+                width: Val::Px(MINIMAP_DOT_SIZE),
+                height: Val::Px(MINIMAP_DOT_SIZE),
+                ..default()
+            },
+            background_color: BackgroundColor(Color::rgb(0.0, 1.0, 0.0)),
+            ..default()
+        },
+        MinimapDot::Player,
+        Minimap,
+    ));
+
+    // Spawn enemy dot
+    commands.spawn((
+        NodeBundle {
+            style: Style {
+                position_type: PositionType::Absolute,
+                width: Val::Px(MINIMAP_DOT_SIZE),
+                height: Val::Px(MINIMAP_DOT_SIZE),
+                ..default()
+            },
+            background_color: BackgroundColor(Color::rgb(1.0, 0.0, 0.0)),
+            ..default()
+        },
+        MinimapDot::Enemy,
+        Minimap,
+    ));
+}
+
+// Add this system to update minimap dots
+fn update_minimap(
+    mut dot_query: Query<(&mut Style, &MinimapDot)>,
+    player_query: Query<&Transform, (With<PlayerCamera>, Without<Enemy>)>,
+    enemy_query: Query<&Transform, With<Enemy>>,
+) {
+    let grid_offset = (GRID_SIZE as f32 * TILE_SIZE) / 2.0;
+    let cell_size = MINIMAP_SIZE / GRID_SIZE as f32;
+
+    for (mut style, dot_type) in dot_query.iter_mut() {
+        match dot_type {
+            MinimapDot::Player => {
+                if let Ok(player_transform) = player_query.get_single() {
+                    let pos = player_transform.translation;
+                    let minimap_x = (pos.x + grid_offset) / TILE_SIZE * cell_size;
+                    let minimap_y = (pos.z + grid_offset) / TILE_SIZE * cell_size;
+                    
+                    style.right = Val::Px(MINIMAP_PADDING + MINIMAP_SIZE - minimap_x - MINIMAP_DOT_SIZE/2.0);
+                    style.bottom = Val::Px(MINIMAP_PADDING + MINIMAP_SIZE - minimap_y - MINIMAP_DOT_SIZE/2.0);
+                }
+            }
+            MinimapDot::Enemy => {
+                if let Ok(enemy_transform) = enemy_query.get_single() {
+                    let pos = enemy_transform.translation;
+                    let minimap_x = (pos.x + grid_offset) / TILE_SIZE * cell_size;
+                    let minimap_y = (pos.z + grid_offset) / TILE_SIZE * cell_size;
+                    
+                    style.right = Val::Px(MINIMAP_PADDING + MINIMAP_SIZE - minimap_x - MINIMAP_DOT_SIZE/2.0);
+                    style.bottom = Val::Px(MINIMAP_PADDING + MINIMAP_SIZE - minimap_y - MINIMAP_DOT_SIZE/2.0);
+                }
+            }
+        }
     }
 }

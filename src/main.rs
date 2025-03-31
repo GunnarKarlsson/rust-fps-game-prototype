@@ -194,6 +194,11 @@ struct LevelDisplay;
 #[derive(Component)]
 struct HealthDisplay;
 
+#[derive(Component)]
+struct HealthPickup {
+    health_amount: u32,
+}
+
 fn spawn_wall(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
@@ -382,7 +387,7 @@ fn main() {
             player_health: 100,
         })
         .insert_resource(CurrentLevel { number: 1 })
-        .add_systems(Startup, (setup, center_cursor, spawn_minimap))
+        .add_systems(Startup, (setup, center_cursor, spawn_minimap, spawn_health_pickups))
         .add_systems(
             Update,
             (
@@ -399,6 +404,7 @@ fn main() {
                 game_over_ui,
                 restart_system,
                 quit_system,
+                update_health_pickups,
             )
         )
         .run();
@@ -1474,5 +1480,75 @@ fn update_minimap(
             MinimapDot::Enemy,
             Minimap,
         ));
+    }
+}
+
+fn spawn_health_pickups(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+) {
+    let grid_offset = (GRID_SIZE as f32 * TILE_SIZE) / 2.0;
+    
+    // Spawn first bottle (bottle.glb)
+    commands.spawn((
+        SceneBundle {
+            scene: asset_server.load("models/bottle.glb#Scene0"),
+            transform: Transform::from_xyz(
+                (5.0 * TILE_SIZE) - grid_offset,
+                0.0, // Halfway between floor and ceiling
+                (10.0 * TILE_SIZE) - grid_offset,
+            ).with_scale(Vec3::splat(1.0)),
+            ..default()
+        },
+        HealthPickup {
+            health_amount: 20,
+        },
+    ));
+
+    // Spawn second bottle (soda-bottle.glb)
+    commands.spawn((
+        SceneBundle {
+            scene: asset_server.load("models/soda-bottle.glb#Scene0"),
+            transform: Transform::from_xyz(
+                (5.0 * TILE_SIZE) - grid_offset,
+                0.0,
+                (12.0 * TILE_SIZE) - grid_offset,
+            ).with_scale(Vec3::splat(1.0)),
+            ..default()
+        },
+        HealthPickup {
+            health_amount: 20,
+        },
+    ));
+}
+
+fn update_health_pickups(
+    mut commands: Commands,
+    mut pickup_query: Query<(Entity, &Transform, &HealthPickup)>,
+    player_query: Query<&Transform, With<PlayerCamera>>,
+    mut game_state: ResMut<GameState>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    let player_transform = player_query.single();
+    
+    for (entity, transform, pickup) in pickup_query.iter() {
+        let distance = player_transform.translation.distance(transform.translation);
+        
+        if distance < (PLAYER_RADIUS + 0.5) { // 0.5 is the pickup radius
+            // Spawn particle effect
+            spawn_particle_explosion(
+                &mut commands,
+                &mut meshes,
+                &mut materials,
+                transform.translation,
+            );
+            
+            // Heal the player
+            game_state.player_health = (game_state.player_health + pickup.health_amount).min(100);
+            
+            // Remove the pickup
+            commands.entity(entity).despawn_recursive();
+        }
     }
 }

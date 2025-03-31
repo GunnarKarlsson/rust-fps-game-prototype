@@ -20,7 +20,7 @@ const ENEMY_SIZE: f32 = 0.3;
 const ENEMY_SPEED: f32 = 2.0;
 const ENEMY_COLLISION_RADIUS: f32 = 0.5; // Larger than PLAYER_RADIUS (0.3)
 const ENEMY_SHOOT_RATE: f32 = 4.0; // Changed from 1.0 to 2.0 seconds between shots
-const ENEMY_BULLET_SPEED: f32 = 6.0; // Changed from 8.0 to 6.0 meters per second
+const ENEMY_BULLET_SPEED: f32 = 1.0; // Changed from 8.0 to 6.0 meters per second
 const ENEMY_BULLET_SIZE: f32 = 0.1;
 const ENEMY_BULLET_LIFETIME: f32 = 5.0;
 const ENEMY_BULLET_HIT_RADIUS: f32 = 1.0; // Larger radius for bullet hit detection
@@ -167,6 +167,8 @@ struct EnemyBullet {
 struct GameState {
     is_game_over: bool,
     has_won: bool,
+    is_level_complete: bool,
+    current_level: u32,
 }
 
 // Add this component to identify minimap entities
@@ -298,11 +300,11 @@ fn reset_game(
     enemy_query: Query<Entity, With<Enemy>>,
     bullet_query: Query<Entity, Or<(With<Bullet>, With<EnemyBullet>)>>,
     asset_server: Res<AssetServer>,
-    current_level: ResMut<CurrentLevel>,
 ) {
     // Reset game state
     game_state.is_game_over = false;
     game_state.has_won = false;
+    game_state.is_level_complete = false;
 
     // Reset player position and rotation
     if let Ok((mut transform, mut camera)) = player_query.get_single_mut() {
@@ -323,43 +325,27 @@ fn reset_game(
         commands.entity(entity).despawn();
     }
 
-    // Calculate grid offset for enemy spawn position
+    // Calculate grid offset for enemy spawn positions
     let grid_offset = (GRID_SIZE as f32 * TILE_SIZE) / 2.0;
 
-    // Spawn enemies based on level
-    if current_level.number == 2 {
-        // Spawn first enemy
-        spawn_enemy(
-            commands,
-            &asset_server,
-            Vec3::new(
-                (2.0 * TILE_SIZE) - grid_offset,
-                0.5,
-                (2.0 * TILE_SIZE) - grid_offset,
-            ),
-        );
+    // Spawn enemies based on current level
+    let enemy_count = game_state.current_level as usize;
+    let spawn_positions = [
+        Vec3::new((2.0 * TILE_SIZE) - grid_offset, 0.5, (2.0 * TILE_SIZE) - grid_offset),
+        Vec3::new((8.0 * TILE_SIZE) - grid_offset, 0.5, (6.0 * TILE_SIZE) - grid_offset),
+        Vec3::new((4.0 * TILE_SIZE) - grid_offset, 0.5, (4.0 * TILE_SIZE) - grid_offset),
+        Vec3::new((6.0 * TILE_SIZE) - grid_offset, 0.5, (8.0 * TILE_SIZE) - grid_offset),
+        Vec3::new((3.0 * TILE_SIZE) - grid_offset, 0.5, (7.0 * TILE_SIZE) - grid_offset),
+    ];
 
-        // Spawn second enemy
-        spawn_enemy(
-            commands,
-            &asset_server,
-            Vec3::new(
-                (8.0 * TILE_SIZE) - grid_offset,
-                0.5,
-                (8.0 * TILE_SIZE) - grid_offset,
-            ),
-        );
-    } else {
-        // Spawn single enemy for level 1
-        spawn_enemy(
-            commands,
-            &asset_server,
-            Vec3::new(
-                (2.0 * TILE_SIZE) - grid_offset,
-                0.5,
-                (2.0 * TILE_SIZE) - grid_offset,
-            ),
-        );
+    for i in 0..enemy_count {
+        if i < spawn_positions.len() {
+            spawn_enemy(
+                commands,
+                &asset_server,
+                spawn_positions[i],
+            );
+        }
     }
 }
 
@@ -377,16 +363,18 @@ fn main() {
         .insert_resource(GameState { 
             is_game_over: false,
             has_won: false,
+            is_level_complete: false,
+            current_level: 1,
         })
         .insert_resource(CurrentLevel { number: 1 })
         .add_systems(Startup, (setup, center_cursor, spawn_minimap))
         .add_systems(
             Update,
             (
-                player_movement.run_if(not(|state: Res<GameState>| state.is_game_over)),
-                player_look.run_if(not(|state: Res<GameState>| state.is_game_over)),
-                cursor_grab_system.run_if(not(|state: Res<GameState>| state.is_game_over)),
-                shoot_bullet.run_if(not(|state: Res<GameState>| state.is_game_over)),
+                player_movement.run_if(not(|state: Res<GameState>| state.is_game_over || state.is_level_complete)),
+                player_look.run_if(not(|state: Res<GameState>| state.is_game_over || state.is_level_complete)),
+                cursor_grab_system.run_if(not(|state: Res<GameState>| state.is_game_over || state.is_level_complete)),
+                shoot_bullet.run_if(not(|state: Res<GameState>| state.is_game_over || state.is_level_complete)),
                 update_bullets,
                 update_particles,
                 update_enemies,
@@ -989,9 +977,10 @@ fn update_bullets(
         for (enemy_entity, enemy_transform) in enemy_query.iter() {
             let distance = enemy_transform.translation.distance(transform.translation);
             if distance < (ENEMY_BULLET_HIT_RADIUS + BULLET_SIZE) {
-                // Set win state
-                game_state.is_game_over = true;
-                game_state.has_won = true;
+                // Check if this is the last enemy before removing it
+                if enemy_query.iter().count() == 1 {
+                    game_state.is_level_complete = true;
+                }
 
                 // Spawn particle explosion at enemy position
                 spawn_particle_explosion(&mut commands, &mut meshes, &mut materials, enemy_transform.translation);
@@ -1002,7 +991,7 @@ fn update_bullets(
                 // Remove bullet, its light, and all children
                 commands.entity(bullet.light).despawn();
                 commands.entity(entity).despawn_recursive();
-                continue;
+                break; // Break out of the enemy loop since we've hit one
             }
         }
         
@@ -1188,14 +1177,14 @@ fn game_over_ui(
     mut commands: Commands,
     game_state: Res<GameState>,
     query: Query<Entity, With<Text>>,
-    mut current_level: ResMut<CurrentLevel>,
 ) {
-    if game_state.is_game_over && query.is_empty() {
-        let message = if game_state.has_won {
-            current_level.number = current_level.number + 1;
-            "Level 2\nPress S to Start\nPress Q to Quit"
-        } else {
+    if (game_state.is_game_over || game_state.is_level_complete) && query.is_empty() {
+        let message = if game_state.is_game_over {
             "Game Over\nPress P to Play Again\nPress Q to Exit"
+        } else {
+            &format!("You finished level {}!\nPress S to start level {}\nPress Q to quit", 
+                game_state.current_level, 
+                game_state.current_level + 1)
         };
 
         commands.spawn(
@@ -1203,7 +1192,7 @@ fn game_over_ui(
                 message,
                 TextStyle {
                     font_size: 50.0,
-                    color: if game_state.has_won { Color::GREEN } else { Color::RED },
+                    color: if game_state.is_game_over { Color::RED } else { Color::GREEN },
                     ..default()
                 },
             )
@@ -1221,21 +1210,24 @@ fn game_over_ui(
 fn restart_system(
     mut commands: Commands,
     keyboard: Res<ButtonInput<KeyCode>>,
-    game_state: ResMut<GameState>,
+    mut game_state: ResMut<GameState>,
     player_query: Query<(&mut Transform, &mut PlayerCamera)>,
     enemy_query: Query<Entity, With<Enemy>>,
     bullet_query: Query<Entity, Or<(With<Bullet>, With<EnemyBullet>)>>,
     text_query: Query<Entity, With<Text>>,
     asset_server: Res<AssetServer>,
-    current_level: ResMut<CurrentLevel>,
 ) {
-    if game_state.is_game_over && (
-        (keyboard.just_pressed(KeyCode::KeyP) && !game_state.has_won) ||
-        (keyboard.just_pressed(KeyCode::KeyS) && game_state.has_won)
-    ) {
+    if (game_state.is_game_over && keyboard.just_pressed(KeyCode::KeyP)) ||
+       (game_state.is_level_complete && keyboard.just_pressed(KeyCode::KeyS)) {
         // Remove game over text
         for entity in text_query.iter() {
             commands.entity(entity).despawn();
+        }
+
+        if game_state.is_level_complete {
+            game_state.current_level += 1;
+        } else {
+            game_state.current_level = 1;
         }
 
         // Reset the game
@@ -1246,7 +1238,6 @@ fn restart_system(
             enemy_query,
             bullet_query,
             asset_server,
-            current_level,
         );
     }
 }

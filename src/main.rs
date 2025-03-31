@@ -1261,7 +1261,7 @@ fn spawn_minimap(
         NodeBundle {
             style: Style {
                 position_type: PositionType::Absolute,
-                right: Val::Px(MINIMAP_PADDING),
+                left: Val::Px(MINIMAP_PADDING),
                 bottom: Val::Px(MINIMAP_PADDING),
                 width: Val::Px(MINIMAP_SIZE),
                 height: Val::Px(MINIMAP_SIZE),
@@ -1282,7 +1282,7 @@ fn spawn_minimap(
                     NodeBundle {
                         style: Style {
                             position_type: PositionType::Absolute,
-                            right: Val::Px(MINIMAP_PADDING + MINIMAP_SIZE - (x as f32 + 1.0) * cell_size),
+                            left: Val::Px(MINIMAP_PADDING + x as f32 * cell_size),
                             bottom: Val::Px(MINIMAP_PADDING + MINIMAP_SIZE - (y as f32 + 1.0) * cell_size),
                             width: Val::Px(cell_size),
                             height: Val::Px(cell_size),
@@ -1351,7 +1351,7 @@ fn update_minimap(
                     let minimap_x = (pos.x + grid_offset) / TILE_SIZE * cell_size;
                     let minimap_y = (pos.z + grid_offset) / TILE_SIZE * cell_size;
                     
-                    style.right = Val::Px(MINIMAP_PADDING + MINIMAP_SIZE - minimap_x - MINIMAP_DOT_SIZE/2.0);
+                    style.left = Val::Px(MINIMAP_PADDING + minimap_x - MINIMAP_DOT_SIZE/2.0);
                     style.bottom = Val::Px(MINIMAP_PADDING + MINIMAP_SIZE - minimap_y - MINIMAP_DOT_SIZE/2.0);
                 }
             }
@@ -1362,7 +1362,7 @@ fn update_minimap(
                     let minimap_x = (pos.x + grid_offset) / TILE_SIZE * cell_size;
                     let minimap_y = (pos.z + grid_offset) / TILE_SIZE * cell_size;
                     
-                    style.right = Val::Px(MINIMAP_PADDING + MINIMAP_SIZE - minimap_x - MINIMAP_DOT_SIZE/2.0);
+                    style.left = Val::Px(MINIMAP_PADDING + minimap_x - MINIMAP_DOT_SIZE/2.0);
                     style.bottom = Val::Px(MINIMAP_PADDING + MINIMAP_SIZE - minimap_y - MINIMAP_DOT_SIZE/2.0);
                     enemy_dots += 1;
                 } else {
@@ -1383,7 +1383,7 @@ fn update_minimap(
             NodeBundle {
                 style: Style {
                     position_type: PositionType::Absolute,
-                    right: Val::Px(MINIMAP_PADDING + MINIMAP_SIZE - minimap_x - MINIMAP_DOT_SIZE/2.0),
+                    left: Val::Px(MINIMAP_PADDING + minimap_x - MINIMAP_DOT_SIZE/2.0),
                     bottom: Val::Px(MINIMAP_PADDING + MINIMAP_SIZE - minimap_y - MINIMAP_DOT_SIZE/2.0),
                     width: Val::Px(MINIMAP_DOT_SIZE),
                     height: Val::Px(MINIMAP_DOT_SIZE),

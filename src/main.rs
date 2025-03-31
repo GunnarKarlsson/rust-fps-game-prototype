@@ -304,19 +304,43 @@ fn reset_game(
     // Calculate grid offset for enemy spawn position
     let grid_offset = (GRID_SIZE as f32 * TILE_SIZE) / 2.0;
 
-    // Spawn new enemy at starting position
-    spawn_enemy(
-        commands,
-        &mut meshes,
-        &mut materials,
-        Vec3::new(
-            (2.0 * TILE_SIZE) - grid_offset,
-            0.5,
-            (2.0 * TILE_SIZE) - grid_offset,
-        ),
-    );
+    // Spawn enemies based on level
     if current_level.number == 2 {
-      
+        // Spawn first enemy
+        spawn_enemy(
+            commands,
+            &mut meshes,
+            &mut materials,
+            Vec3::new(
+                (2.0 * TILE_SIZE) - grid_offset,
+                0.5,
+                (2.0 * TILE_SIZE) - grid_offset,
+            ),
+        );
+
+        // Spawn second enemy
+        spawn_enemy(
+            commands,
+            &mut meshes,
+            &mut materials,
+            Vec3::new(
+                (8.0 * TILE_SIZE) - grid_offset,
+                0.5,
+                (4.0 * TILE_SIZE) - grid_offset,
+            ),
+        );
+    } else {
+        // Spawn single enemy for level 1
+        spawn_enemy(
+            commands,
+            &mut meshes,
+            &mut materials,
+            Vec3::new(
+                (2.0 * TILE_SIZE) - grid_offset,
+                0.5,
+                (2.0 * TILE_SIZE) - grid_offset,
+            ),
+        );
     }
 }
 
@@ -1256,16 +1280,20 @@ fn spawn_minimap(
     ));
 }
 
-// Add this system to update minimap dots
+// Update the minimap system to handle multiple enemies
 fn update_minimap(
-    mut dot_query: Query<(&mut Style, &MinimapDot)>,
+    mut commands: Commands,
+    mut dot_query: Query<(Entity, &mut Style, &MinimapDot)>,
     player_query: Query<&Transform, (With<PlayerCamera>, Without<Enemy>)>,
     enemy_query: Query<&Transform, With<Enemy>>,
 ) {
     let grid_offset = (GRID_SIZE as f32 * TILE_SIZE) / 2.0;
     let cell_size = MINIMAP_SIZE / GRID_SIZE as f32;
 
-    for (mut style, dot_type) in dot_query.iter_mut() {
+    // Keep track of enemy dots we've updated
+    let mut enemy_dots = 0;
+
+    for (entity, mut style, dot_type) in dot_query.iter_mut() {
         match dot_type {
             MinimapDot::Player => {
                 if let Ok(player_transform) = player_query.get_single() {
@@ -1278,15 +1306,44 @@ fn update_minimap(
                 }
             }
             MinimapDot::Enemy => {
-                if let Ok(enemy_transform) = enemy_query.get_single() {
+                // If we have an enemy transform for this dot, update it
+                if let Some(enemy_transform) = enemy_query.iter().nth(enemy_dots) {
                     let pos = enemy_transform.translation;
                     let minimap_x = (pos.x + grid_offset) / TILE_SIZE * cell_size;
                     let minimap_y = (pos.z + grid_offset) / TILE_SIZE * cell_size;
                     
                     style.right = Val::Px(MINIMAP_PADDING + MINIMAP_SIZE - minimap_x - MINIMAP_DOT_SIZE/2.0);
                     style.bottom = Val::Px(MINIMAP_PADDING + MINIMAP_SIZE - minimap_y - MINIMAP_DOT_SIZE/2.0);
+                    enemy_dots += 1;
+                } else {
+                    // If we don't have an enemy for this dot, remove it
+                    commands.entity(entity).despawn();
                 }
             }
         }
+    }
+
+    // Spawn new enemy dots if we need more
+    for enemy_transform in enemy_query.iter().skip(enemy_dots) {
+        let pos = enemy_transform.translation;
+        let minimap_x = (pos.x + grid_offset) / TILE_SIZE * cell_size;
+        let minimap_y = (pos.z + grid_offset) / TILE_SIZE * cell_size;
+
+        commands.spawn((
+            NodeBundle {
+                style: Style {
+                    position_type: PositionType::Absolute,
+                    right: Val::Px(MINIMAP_PADDING + MINIMAP_SIZE - minimap_x - MINIMAP_DOT_SIZE/2.0),
+                    bottom: Val::Px(MINIMAP_PADDING + MINIMAP_SIZE - minimap_y - MINIMAP_DOT_SIZE/2.0),
+                    width: Val::Px(MINIMAP_DOT_SIZE),
+                    height: Val::Px(MINIMAP_DOT_SIZE),
+                    ..default()
+                },
+                background_color: BackgroundColor(Color::rgb(1.0, 0.0, 0.0)),
+                ..default()
+            },
+            MinimapDot::Enemy,
+            Minimap,
+        ));
     }
 }

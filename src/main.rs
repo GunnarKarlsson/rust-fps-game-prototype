@@ -849,8 +849,9 @@ fn shoot_bullet(
             * Quat::from_axis_angle(Vec3::X, camera.pitch);
         let bullet_direction = rotation * -Vec3::Z; // Negative Z is forward in our coordinate system
 
-        // Set bullet spawn position to 0.4 meters above the floor
-        let bullet_position = Vec3::new(camera.position.x, 0.4, camera.position.z);
+        // Set bullet spawn position to the tip of the gun
+        let gun_offset = Vec3::new(0.3, -0.2, -0.5); // Gun position relative to camera
+        let bullet_position = camera.position + rotation * gun_offset;
         error!("DEBUG: Attempting to spawn bullet at position: {:?}", bullet_position);
 
         // Create parent entity with Bullet component and transform

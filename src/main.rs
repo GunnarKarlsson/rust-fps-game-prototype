@@ -967,8 +967,8 @@ fn update_bullets(
                 // Spawn particle explosion at enemy position
                 spawn_particle_explosion(&mut commands, &mut meshes, &mut materials, enemy_transform.translation);
                 
-                // Remove the enemy
-                commands.entity(enemy_entity).despawn();
+                // Remove the enemy and all its children
+                commands.entity(enemy_entity).despawn_recursive();
                 
                 // Remove bullet, its light, and all children
                 commands.entity(bullet.light).despawn();

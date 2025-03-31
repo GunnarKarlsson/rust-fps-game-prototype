@@ -174,16 +174,6 @@ enum MinimapDot {
     Enemy,
 }
 
-// Add this resource for the level counter
-#[derive(Resource)]
-struct LevelCounter {
-    level: u32,
-}
-
-// Add this component to identify the level text
-#[derive(Component)]
-struct LevelText;
-
 fn spawn_wall(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
@@ -336,7 +326,6 @@ fn main() {
             is_game_over: false,
             has_won: false,
         })
-        .insert_resource(LevelCounter { level: 1 })
         .add_systems(Startup, (setup, center_cursor, spawn_minimap))
         .add_systems(
             Update,
@@ -354,7 +343,6 @@ fn main() {
                 game_over_ui,
                 restart_system,
                 quit_system,
-                display_level,
             )
         )
         .run();
@@ -905,7 +893,6 @@ fn update_bullets(
     mut light_query: Query<&mut Transform, (Without<Bullet>, Without<Enemy>)>,
     enemy_query: Query<(Entity, &Transform), (With<Enemy>, Without<Bullet>)>,
     mut game_state: ResMut<GameState>,
-    mut level_counter: ResMut<LevelCounter>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
@@ -917,10 +904,9 @@ fn update_bullets(
         for (enemy_entity, enemy_transform) in enemy_query.iter() {
             let distance = enemy_transform.translation.distance(transform.translation);
             if distance < (ENEMY_SIZE + BULLET_SIZE) {
-                // Set win state and increment level
+                // Set win state
                 game_state.is_game_over = true;
                 game_state.has_won = true;
-                level_counter.level += 1;  // Increment level counter
 
                 // Spawn particle explosion at enemy position
                 spawn_particle_explosion(&mut commands, &mut meshes, &mut materials, enemy_transform.translation);
@@ -1120,7 +1106,7 @@ fn game_over_ui(
 ) {
     if game_state.is_game_over && query.is_empty() {
         let message = if game_state.has_won {
-            "You Win!\nPress P to Play Again\nPress Q to Exit"
+            "Level 2\nPress S to Start\nPress Q to Quit"
         } else {
             "Game Over\nPress P to Play Again\nPress Q to Exit"
         };
@@ -1156,7 +1142,10 @@ fn restart_system(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    if game_state.is_game_over && keyboard.just_pressed(KeyCode::KeyP) {
+    if game_state.is_game_over && (
+        (keyboard.just_pressed(KeyCode::KeyP) && !game_state.has_won) ||
+        (keyboard.just_pressed(KeyCode::KeyS) && game_state.has_won)
+    ) {
         // Remove game over text
         for entity in text_query.iter() {
             commands.entity(entity).despawn();
@@ -1286,35 +1275,4 @@ fn update_minimap(
             }
         }
     }
-}
-
-// Add this system to display the level counter
-fn display_level(
-    mut commands: Commands,
-    level_counter: Res<LevelCounter>,
-    query: Query<Entity, With<LevelText>>,
-) {
-    // Remove existing level text
-    for entity in query.iter() {
-        commands.entity(entity).despawn();
-    }
-
-    // Spawn new level text
-    commands.spawn((
-        TextBundle::from_section(
-            format!("Level {}", level_counter.level),
-            TextStyle {
-                font_size: 30.0,
-                color: Color::WHITE,
-                ..default()
-            },
-        )
-        .with_style(Style {
-            position_type: PositionType::Absolute,
-            top: Val::Px(20.0),
-            right: Val::Px(20.0),
-            ..default()
-        }),
-        LevelText,
-    ));
 }

@@ -318,7 +318,7 @@ fn reset_game(
             ),
         );
 
-        // Spawn second enemy
+        // Spawn second enemy in a more open area
         spawn_enemy(
             commands,
             &mut meshes,
@@ -326,7 +326,7 @@ fn reset_game(
             Vec3::new(
                 (8.0 * TILE_SIZE) - grid_offset,
                 0.5,
-                (4.0 * TILE_SIZE) - grid_offset,
+                (7.0 * TILE_SIZE) - grid_offset, // Changed from 4.0 to 8.0
             ),
         );
     } else {

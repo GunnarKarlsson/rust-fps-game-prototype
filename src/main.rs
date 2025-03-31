@@ -1503,7 +1503,20 @@ fn spawn_health_pickups(
         HealthPickup {
             health_amount: 20,
         },
-    ));
+    )).with_children(|parent| {
+        // Add green light above the bottle
+        parent.spawn(PointLightBundle {
+            point_light: PointLight {
+                color: Color::rgb(0.0, 1.0, 0.0), // Green light
+                intensity: 50000.0,
+                range: 3.0,
+                shadows_enabled: true,
+                ..default()
+            },
+            transform: Transform::from_xyz(0.0, 1.0, 0.0), // 1 unit above the bottle
+            ..default()
+        });
+    });
 
     // Spawn second bottle (soda-bottle.glb)
     commands.spawn((
@@ -1519,7 +1532,20 @@ fn spawn_health_pickups(
         HealthPickup {
             health_amount: 20,
         },
-    ));
+    )).with_children(|parent| {
+        // Add green light above the soda bottle
+        parent.spawn(PointLightBundle {
+            point_light: PointLight {
+                color: Color::rgb(0.0, 1.0, 0.0), // Green light
+                intensity: 50000.0,
+                range: 3.0,
+                shadows_enabled: true,
+                ..default()
+            },
+            transform: Transform::from_xyz(0.0, 1.0, 0.0), // 1 unit above the bottle
+            ..default()
+        });
+    });
 }
 
 fn update_health_pickups(

@@ -811,8 +811,7 @@ fn quit_system(keyboard: Res<ButtonInput<KeyCode>>) {
 
 fn shoot_bullet(
     mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    asset_server: Res<AssetServer>,
     keyboard: Res<ButtonInput<KeyCode>>,
     camera_query: Query<(&Transform, &PlayerCamera)>,
 ) {
@@ -824,45 +823,53 @@ fn shoot_bullet(
             * Quat::from_axis_angle(Vec3::X, camera.pitch);
         let bullet_direction = rotation * -Vec3::Z; // Negative Z is forward in our coordinate system
 
-        // Spawn bullet
+        // Set bullet spawn position to 0.4 meters above the floor
+        let bullet_position = Vec3::new(camera.position.x, 0.4, camera.position.z);
+        error!("DEBUG: Attempting to spawn bullet at position: {:?}", bullet_position);
+
+        // Create parent entity with Bullet component and transform
         let bullet_entity = commands
             .spawn((
-                PbrBundle {
-                    mesh: meshes.add(Mesh::from(Cuboid::new(
-                        BULLET_SIZE,
-                        BULLET_SIZE,
-                        BULLET_SIZE,
-                    ))),
-                    material: materials.add(StandardMaterial {
-                        base_color: Color::rgb(1.0, 0.0, 0.0), // Pure red base color
-                        emissive: Color::rgb(1.0, 0.0, 0.0) * 50.0, // Much higher emissive intensity
-                        ..default()
-                    }),
-                    transform: Transform::from_translation(camera.position),
-                    ..default()
-                },
                 Bullet {
                     velocity: bullet_direction * BULLET_SPEED,
                     lifetime: BULLET_LIFETIME,
-                    light: Entity::PLACEHOLDER, // Will be updated after light spawn
+                    light: Entity::PLACEHOLDER,
+                },
+                SpatialBundle {
+                    transform: Transform::from_translation(bullet_position)
+                        .with_rotation(rotation),
+                    ..default()
                 },
             ))
+            .with_children(|parent| {
+                error!("DEBUG: Attempting to spawn bullet model as child");
+                parent.spawn(SceneBundle {
+                    scene: asset_server.load("models/skull.glb#Scene0"), // Temporarily using skull model
+                    transform: Transform::from_scale(Vec3::splat(0.2)), // Smaller scale for bullet
+                    ..default()
+                });
+                error!("DEBUG: Finished spawning bullet model");
+            })
             .id();
+
+        error!("DEBUG: Spawned bullet entity with ID: {:?}", bullet_entity);
 
         // Spawn light for the bullet
         let light_entity = commands
             .spawn(PointLightBundle {
                 point_light: PointLight {
-                    color: Color::rgb(1.0, 0.0, 0.0), // Red light
+                    color: Color::rgb(1.0, 0.0, 0.0),
                     intensity: BULLET_LIGHT_INTENSITY,
                     range: BULLET_LIGHT_RANGE,
                     shadows_enabled: true,
                     ..default()
                 },
-                transform: Transform::from_translation(camera.position),
+                transform: Transform::from_translation(bullet_position),
                 ..default()
             })
             .id();
+
+        error!("DEBUG: Spawned bullet light with ID: {:?}", light_entity);
 
         // Update bullet with light entity reference
         if let Some(mut bullet) = commands.get_entity(bullet_entity) {
@@ -871,6 +878,7 @@ fn shoot_bullet(
                 lifetime: BULLET_LIFETIME,
                 light: light_entity,
             });
+            error!("DEBUG: Updated bullet with light reference");
         }
     }
 }

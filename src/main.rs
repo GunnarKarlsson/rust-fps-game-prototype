@@ -307,6 +307,41 @@ fn spawn_enemy(
     });
 }
 
+fn is_valid_spawn_position(x: usize, z: usize) -> bool {
+    // Check if position is within grid bounds
+    if x >= GRID_SIZE || z >= GRID_SIZE {
+        return false;
+    }
+    
+    // Check if position is not a wall
+    if GRID_LAYOUT[z][x] {
+        return false;
+    }
+    
+    // Check surrounding tiles to ensure there's enough space
+    let directions = [
+        (0, 1), (1, 1), (1, 0), (1, -1),
+        (0, -1), (-1, -1), (-1, 0), (-1, 1)
+    ];
+    
+    for (dx, dz) in directions.iter() {
+        let check_x = x as i32 + dx;
+        let check_z = z as i32 + dz;
+        
+        // Skip if out of bounds
+        if check_x < 0 || check_x >= GRID_SIZE as i32 || check_z < 0 || check_z >= GRID_SIZE as i32 {
+            continue;
+        }
+        
+        // If any adjacent tile is a wall, this might be too cramped
+        if GRID_LAYOUT[check_z as usize][check_x as usize] {
+            return false;
+        }
+    }
+    
+    true
+}
+
 fn reset_game(
     commands: &mut Commands,
     mut game_state: ResMut<GameState>,
@@ -349,22 +384,38 @@ fn reset_game(
 
     // Spawn enemies based on current level
     let enemy_count = game_state.current_level as usize;
-    let spawn_positions = [
-        Vec3::new((2.0 * TILE_SIZE) - grid_offset, 0.5, (2.0 * TILE_SIZE) - grid_offset),
-        Vec3::new((8.0 * TILE_SIZE) - grid_offset, 0.5, (6.0 * TILE_SIZE) - grid_offset),
-        Vec3::new((4.0 * TILE_SIZE) - grid_offset, 0.5, (4.0 * TILE_SIZE) - grid_offset),
-        Vec3::new((6.0 * TILE_SIZE) - grid_offset, 0.5, (8.0 * TILE_SIZE) - grid_offset),
-        Vec3::new((3.0 * TILE_SIZE) - grid_offset, 0.5, (7.0 * TILE_SIZE) - grid_offset),
-    ];
+    let mut enemies_spawned = 0;
+    let mut attempts = 0;
+    const MAX_ATTEMPTS: usize = 100; // Prevent infinite loop
 
-    for i in 0..enemy_count {
-        if i < spawn_positions.len() {
+    while enemies_spawned < enemy_count && attempts < MAX_ATTEMPTS {
+        // Generate random position
+        let x = rand::random::<usize>() % GRID_SIZE;
+        let z = rand::random::<usize>() % GRID_SIZE;
+
+        if is_valid_spawn_position(x, z) {
+            // Convert grid position to world position
+            let world_pos = Vec3::new(
+                (x as f32 * TILE_SIZE) - grid_offset,
+                0.5, // Halfway between floor and ceiling
+                (z as f32 * TILE_SIZE) - grid_offset,
+            );
+
+            // Spawn enemy at valid position
             spawn_enemy(
                 commands,
                 &asset_server,
-                spawn_positions[i],
+                world_pos,
             );
+            enemies_spawned += 1;
         }
+        attempts += 1;
+    }
+
+    // If we couldn't spawn all enemies, log a warning
+    if enemies_spawned < enemy_count {
+        error!("Could only spawn {} out of {} enemies due to space constraints", 
+            enemies_spawned, enemy_count);
     }
 }
 

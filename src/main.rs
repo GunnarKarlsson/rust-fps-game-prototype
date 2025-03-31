@@ -170,6 +170,7 @@ struct GameState {
     is_level_complete: bool,
     current_level: u32,
     player_health: u32,
+    has_started: bool,
 }
 
 // Add this component to identify minimap entities
@@ -198,6 +199,10 @@ struct HealthDisplay;
 struct HealthPickup {
     health_amount: u32,
 }
+
+// Add this component after the other component definitions
+#[derive(Component)]
+struct StartScreen;
 
 fn spawn_wall(
     commands: &mut Commands,
@@ -355,7 +360,8 @@ fn reset_game(
     game_state.is_game_over = false;
     game_state.has_won = false;
     game_state.is_level_complete = false;
-    game_state.player_health = 100; // Reset health to 100
+    game_state.player_health = 100;
+    game_state.has_started = true;
 
     // Reset player position and rotation
     if let Ok((mut transform, mut camera)) = player_query.get_single_mut() {
@@ -504,26 +510,28 @@ fn main() {
             is_level_complete: false,
             current_level: 1,
             player_health: 100,
+            has_started: false,
         })
         .insert_resource(CurrentLevel { number: 1 })
-        .add_systems(Startup, (setup, center_cursor, spawn_minimap, spawn_health_pickups))
+        .add_systems(Startup, (setup, center_cursor, spawn_minimap, spawn_health_pickups, spawn_start_screen))
         .add_systems(
             Update,
             (
-                player_movement.run_if(not(|state: Res<GameState>| state.is_game_over || state.is_level_complete)),
-                player_look.run_if(not(|state: Res<GameState>| state.is_game_over || state.is_level_complete)),
-                cursor_grab_system.run_if(not(|state: Res<GameState>| state.is_game_over || state.is_level_complete)),
-                shoot_bullet.run_if(not(|state: Res<GameState>| state.is_game_over || state.is_level_complete)),
-                update_bullets,
-                update_particles,
-                update_enemies,
-                enemy_shooting,
-                update_enemy_bullets,
-                update_minimap,
-                game_over_ui,
-                restart_system,
-                quit_system,
-                update_health_pickups,
+                start_screen_system,
+                player_movement.run_if(|state: Res<GameState>| state.has_started && !state.is_game_over && !state.is_level_complete),
+                player_look.run_if(|state: Res<GameState>| state.has_started && !state.is_game_over && !state.is_level_complete),
+                cursor_grab_system.run_if(|state: Res<GameState>| state.has_started && !state.is_game_over && !state.is_level_complete),
+                shoot_bullet.run_if(|state: Res<GameState>| state.has_started && !state.is_game_over && !state.is_level_complete),
+                update_bullets.run_if(|state: Res<GameState>| state.has_started),
+                update_particles.run_if(|state: Res<GameState>| state.has_started),
+                update_enemies.run_if(|state: Res<GameState>| state.has_started),
+                enemy_shooting.run_if(|state: Res<GameState>| state.has_started),
+                update_enemy_bullets.run_if(|state: Res<GameState>| state.has_started),
+                update_minimap.run_if(|state: Res<GameState>| state.has_started),
+                game_over_ui.run_if(|state: Res<GameState>| state.has_started),
+                restart_system.run_if(|state: Res<GameState>| state.has_started),
+                quit_system.run_if(|state: Res<GameState>| state.has_started),
+                update_health_pickups.run_if(|state: Res<GameState>| state.has_started),
             )
         )
         .run();
@@ -1698,4 +1706,42 @@ fn update_health_pickups(
             commands.entity(entity).despawn_recursive();
         }
     }
+}
+
+// Add this new system after the other system definitions
+fn start_screen_system(
+    mut commands: Commands,
+    keyboard: Res<ButtonInput<KeyCode>>,
+    mut game_state: ResMut<GameState>,
+    start_screen_query: Query<Entity, With<StartScreen>>,
+) {
+    if !game_state.has_started && keyboard.just_pressed(KeyCode::KeyS) {
+        // Remove start screen
+        for entity in start_screen_query.iter() {
+            commands.entity(entity).despawn();
+        }
+        game_state.has_started = true;
+    }
+}
+
+// Add this new function to spawn the start screen
+fn spawn_start_screen(mut commands: Commands) {
+    commands.spawn((
+        TextBundle::from_section(
+            "Infinite Ammo\nPress S to Start",
+            TextStyle {
+                font_size: 60.0,
+                color: Color::WHITE,
+                ..default()
+            },
+        )
+        .with_style(Style {
+            position_type: PositionType::Absolute,
+            top: Val::Px(100.0),
+            left: Val::Auto,
+            right: Val::Auto,
+            ..default()
+        }),
+        StartScreen,
+    ));
 }

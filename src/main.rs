@@ -1185,11 +1185,15 @@ fn update_enemy_bullets(
 fn game_over_ui(
     mut commands: Commands,
     game_state: Res<GameState>,
-    level_display_query: Query<Entity, With<LevelDisplay>>,
+    mut level_display_query: Query<(Entity, &mut Text), With<LevelDisplay>>,
     game_over_query: Query<Entity, (With<Text>, Without<LevelDisplay>)>,
 ) {
-    // Spawn level display if it doesn't exist
-    if level_display_query.is_empty() {
+    // Update or spawn level display
+    if let Ok((entity, mut text)) = level_display_query.get_single_mut() {
+        // Update existing level display
+        text.sections[0].value = format!("Level {}", game_state.current_level);
+    } else {
+        // Spawn new level display
         commands.spawn((
             TextBundle::from_section(
                 format!("Level {}", game_state.current_level),

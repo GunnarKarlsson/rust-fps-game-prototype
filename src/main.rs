@@ -269,7 +269,21 @@ fn spawn_enemy(
             transform: Transform::from_scale(Vec3::splat(0.5)),
             ..default()
         });
-        error!("DEBUG: Finished spawning skull model");
+
+        // Add blue light below the skull
+        parent.spawn(PointLightBundle {
+            point_light: PointLight {
+                color: Color::rgb(0.0, 0.0, 1.0), // Blue light
+                intensity: 10000.0,
+                range: 2.0,
+                shadows_enabled: true,
+                ..default()
+            },
+            transform: Transform::from_xyz(0.0, -0.4, 0.0), // 0.4 meters below the skull (0.5 - 0.1)
+            ..default()
+        });
+
+        error!("DEBUG: Finished spawning skull model and light");
     });
 }
 

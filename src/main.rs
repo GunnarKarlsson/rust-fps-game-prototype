@@ -811,7 +811,8 @@ fn quit_system(keyboard: Res<ButtonInput<KeyCode>>) {
 
 fn shoot_bullet(
     mut commands: Commands,
-    asset_server: Res<AssetServer>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
     keyboard: Res<ButtonInput<KeyCode>>,
     camera_query: Query<(&Transform, &PlayerCamera)>,
 ) {
@@ -842,13 +843,18 @@ fn shoot_bullet(
                 },
             ))
             .with_children(|parent| {
-                error!("DEBUG: Attempting to spawn bullet model as child");
-                parent.spawn(SceneBundle {
-                    scene: asset_server.load("models/skull.glb#Scene0"), // Temporarily using skull model
-                    transform: Transform::from_scale(Vec3::splat(0.2)), // Smaller scale for bullet
+                error!("DEBUG: Attempting to spawn bullet sphere");
+                parent.spawn(PbrBundle {
+                    mesh: meshes.add(Mesh::from(bevy::math::primitives::Sphere::new(0.1))),
+                    material: materials.add(StandardMaterial {
+                        base_color: Color::rgb(1.0, 0.0, 0.0),
+                        emissive: Color::rgb(1.0, 0.0, 0.0) * 50.0,
+                        ..default()
+                    }),
+                    transform: Transform::IDENTITY,
                     ..default()
                 });
-                error!("DEBUG: Finished spawning bullet model");
+                error!("DEBUG: Finished spawning bullet sphere");
             })
             .id();
 

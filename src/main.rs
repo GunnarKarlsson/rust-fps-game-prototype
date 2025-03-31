@@ -964,7 +964,7 @@ fn update_bullets(
     time: Res<Time>,
     mut bullet_query: Query<(Entity, &mut Transform, &mut Bullet)>,
     mut light_query: Query<&mut Transform, (Without<Bullet>, Without<Enemy>)>,
-    enemy_query: Query<(Entity, &Transform), (With<Enemy>, Without<Bullet>)>,
+    enemy_query: Query<(Entity, &Transform, &Children), (With<Enemy>, Without<Bullet>)>,
     mut game_state: ResMut<GameState>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -974,7 +974,7 @@ fn update_bullets(
         let new_position = transform.translation + bullet.velocity * time.delta_seconds();
         
         // Check for enemy collision using the larger hit radius
-        for (enemy_entity, enemy_transform) in enemy_query.iter() {
+        for (enemy_entity, enemy_transform, children) in enemy_query.iter() {
             let distance = enemy_transform.translation.distance(transform.translation);
             if distance < (ENEMY_BULLET_HIT_RADIUS + BULLET_SIZE) {
                 // Check if this is the last enemy before removing it
@@ -985,8 +985,13 @@ fn update_bullets(
                 // Spawn particle explosion at enemy position
                 spawn_particle_explosion(&mut commands, &mut meshes, &mut materials, enemy_transform.translation);
                 
-                // Remove the enemy and all its children
-                commands.entity(enemy_entity).despawn_recursive();
+                // Remove all children first
+                for &child in children.iter() {
+                    commands.entity(child).despawn_recursive();
+                }
+                
+                // Then remove the enemy entity
+                commands.entity(enemy_entity).despawn();
                 
                 // Remove bullet, its light, and all children
                 commands.entity(bullet.light).despawn();

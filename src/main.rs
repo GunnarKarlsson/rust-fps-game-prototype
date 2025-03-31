@@ -315,6 +315,9 @@ fn reset_game(
             (2.0 * TILE_SIZE) - grid_offset,
         ),
     );
+    if current_level.number == 2 {
+      
+    }
 }
 
 fn main() {
@@ -1110,9 +1113,11 @@ fn game_over_ui(
     mut commands: Commands,
     game_state: Res<GameState>,
     query: Query<Entity, With<Text>>,
+    mut current_level: ResMut<CurrentLevel>,
 ) {
     if game_state.is_game_over && query.is_empty() {
         let message = if game_state.has_won {
+            current_level.number = current_level.number + 1;
             "Level 2\nPress S to Start\nPress Q to Quit"
         } else {
             "Game Over\nPress P to Play Again\nPress Q to Exit"

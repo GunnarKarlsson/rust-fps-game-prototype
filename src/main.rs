@@ -348,6 +348,7 @@ fn reset_game(
     mut player_query: Query<(&mut Transform, &mut PlayerCamera)>,
     enemy_query: Query<Entity, With<Enemy>>,
     bullet_query: Query<Entity, Or<(With<Bullet>, With<EnemyBullet>)>>,
+    pickup_query: Query<Entity, With<HealthPickup>>,
     asset_server: Res<AssetServer>,
 ) {
     // Reset game state
@@ -379,7 +380,14 @@ fn reset_game(
         }
     }
 
-    // Calculate grid offset for enemy spawn positions
+    // Remove all existing health pickups
+    for entity in pickup_query.iter() {
+        if let Some(mut pickup) = commands.get_entity(entity) {
+            pickup.despawn_recursive();
+        }
+    }
+
+    // Calculate grid offset for spawn positions
     let grid_offset = (GRID_SIZE as f32 * TILE_SIZE) / 2.0;
 
     // Spawn enemies based on current level
@@ -416,6 +424,66 @@ fn reset_game(
     if enemies_spawned < enemy_count {
         error!("Could only spawn {} out of {} enemies due to space constraints", 
             enemies_spawned, enemy_count);
+    }
+
+    // Spawn health pickups
+    let mut pickups_spawned = 0;
+    attempts = 0;
+
+    while pickups_spawned < 2 && attempts < MAX_ATTEMPTS {
+        // Generate random position
+        let x = rand::random::<usize>() % GRID_SIZE;
+        let z = rand::random::<usize>() % GRID_SIZE;
+
+        if is_valid_spawn_position(x, z) {
+            // Convert grid position to world position
+            let world_pos = Vec3::new(
+                (x as f32 * TILE_SIZE) - grid_offset,
+                0.5, // Halfway between floor and ceiling
+                (z as f32 * TILE_SIZE) - grid_offset,
+            );
+
+            // Spawn either bottle or soda bottle based on which one we need
+            let model_path = if pickups_spawned == 0 {
+                "models/bottle.glb#Scene0"
+            } else {
+                "models/soda-bottle.glb#Scene0"
+            };
+
+            commands.spawn((
+                SceneBundle {
+                    scene: asset_server.load(model_path),
+                    transform: Transform::from_translation(world_pos)
+                        .with_scale(Vec3::splat(1.0)),
+                    ..default()
+                },
+                HealthPickup {
+                    health_amount: 20,
+                },
+            )).with_children(|parent| {
+                // Add green light above the bottle
+                parent.spawn(PointLightBundle {
+                    point_light: PointLight {
+                        color: Color::rgb(0.0, 1.0, 0.0), // Green light
+                        intensity: 50000.0,
+                        range: 3.0,
+                        shadows_enabled: true,
+                        ..default()
+                    },
+                    transform: Transform::from_xyz(0.0, 1.0, 0.0), // 1 unit above the bottle
+                    ..default()
+                });
+            });
+
+            pickups_spawned += 1;
+        }
+        attempts += 1;
+    }
+
+    // If we couldn't spawn all health pickups, log a warning
+    if pickups_spawned < 2 {
+        error!("Could only spawn {} out of 2 health pickups due to space constraints", 
+            pickups_spawned);
     }
 }
 
@@ -1356,6 +1424,7 @@ fn restart_system(
     player_query: Query<(&mut Transform, &mut PlayerCamera)>,
     enemy_query: Query<Entity, With<Enemy>>,
     bullet_query: Query<Entity, Or<(With<Bullet>, With<EnemyBullet>)>>,
+    pickup_query: Query<Entity, With<HealthPickup>>,
     game_over_query: Query<Entity, (With<Text>, Without<LevelDisplay>, Without<HealthDisplay>)>,
     asset_server: Res<AssetServer>,
 ) {
@@ -1379,6 +1448,7 @@ fn restart_system(
             player_query,
             enemy_query,
             bullet_query,
+            pickup_query,
             asset_server,
         );
     }

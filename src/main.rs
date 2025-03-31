@@ -169,6 +169,7 @@ struct GameState {
     has_won: bool,
     is_level_complete: bool,
     current_level: u32,
+    player_health: u32,
 }
 
 // Add this component to identify minimap entities
@@ -188,6 +189,10 @@ struct Gun;
 // Add this component for the level display
 #[derive(Component)]
 struct LevelDisplay;
+
+// Add this component for the health display
+#[derive(Component)]
+struct HealthDisplay;
 
 fn spawn_wall(
     commands: &mut Commands,
@@ -309,6 +314,7 @@ fn reset_game(
     game_state.is_game_over = false;
     game_state.has_won = false;
     game_state.is_level_complete = false;
+    game_state.player_health = 100; // Reset health to 100
 
     // Reset player position and rotation
     if let Ok((mut transform, mut camera)) = player_query.get_single_mut() {
@@ -319,14 +325,18 @@ fn reset_game(
         transform.rotation = Quat::IDENTITY;
     }
 
-    // Remove all existing enemies
+    // Remove all existing enemies and their children
     for entity in enemy_query.iter() {
-        commands.entity(entity).despawn();
+        if let Some(mut enemy) = commands.get_entity(entity) {
+            enemy.despawn_recursive();
+        }
     }
 
-    // Remove all bullets
+    // Remove all bullets and their children
     for entity in bullet_query.iter() {
-        commands.entity(entity).despawn();
+        if let Some(mut bullet) = commands.get_entity(entity) {
+            bullet.despawn_recursive();
+        }
     }
 
     // Calculate grid offset for enemy spawn positions
@@ -369,6 +379,7 @@ fn main() {
             has_won: false,
             is_level_complete: false,
             current_level: 1,
+            player_health: 100,
         })
         .insert_resource(CurrentLevel { number: 1 })
         .add_systems(Startup, (setup, center_cursor, spawn_minimap))
@@ -1159,7 +1170,13 @@ fn update_enemy_bullets(
         // Check for player collision
         let distance = player_transform.translation.distance(transform.translation);
         if distance < (PLAYER_RADIUS + ENEMY_BULLET_SIZE) {
-            game_state.is_game_over = true;
+            // Reduce health by 20
+            if game_state.player_health > 20 {
+                game_state.player_health -= 20;
+            } else {
+                game_state.player_health = 0;
+                game_state.is_game_over = true;
+            }
             commands.entity(entity).despawn();
             continue;
         }
@@ -1185,15 +1202,25 @@ fn update_enemy_bullets(
 fn game_over_ui(
     mut commands: Commands,
     game_state: Res<GameState>,
-    mut level_display_query: Query<(Entity, &mut Text), With<LevelDisplay>>,
-    game_over_query: Query<Entity, (With<Text>, Without<LevelDisplay>)>,
+    mut text_query: Query<(Entity, &mut Text, Option<&LevelDisplay>, Option<&HealthDisplay>)>,
 ) {
     // Update or spawn level display
-    if let Ok((entity, mut text)) = level_display_query.get_single_mut() {
-        // Update existing level display
-        text.sections[0].value = format!("Level {}", game_state.current_level);
-    } else {
-        // Spawn new level display
+    let mut has_level_display = false;
+    let mut has_health_display = false;
+    
+    for (entity, mut text, level_display, health_display) in text_query.iter_mut() {
+        if level_display.is_some() {
+            has_level_display = true;
+            text.sections[0].value = format!("Level {}", game_state.current_level);
+        }
+        if health_display.is_some() {
+            has_health_display = true;
+            text.sections[0].value = format!("Health: {}%", game_state.player_health);
+        }
+    }
+
+    // Spawn level display if it doesn't exist
+    if !has_level_display {
         commands.spawn((
             TextBundle::from_section(
                 format!("Level {}", game_state.current_level),
@@ -1213,8 +1240,30 @@ fn game_over_ui(
         ));
     }
 
-    // Spawn game over or level complete message if needed
-    if (game_state.is_game_over || game_state.is_level_complete) && game_over_query.is_empty() {
+    // Spawn health display if it doesn't exist
+    if !has_health_display {
+        commands.spawn((
+            TextBundle::from_section(
+                format!("Health: {}%", game_state.player_health),
+                TextStyle {
+                    font_size: 30.0,
+                    color: Color::WHITE,
+                    ..default()
+                },
+            )
+            .with_style(Style {
+                position_type: PositionType::Absolute,
+                top: Val::Px(20.0),
+                right: Val::Px(200.0),
+                ..default()
+            }),
+            HealthDisplay,
+        ));
+    }
+
+    // Check if we need to spawn game over message
+    let has_game_over = text_query.iter().any(|(_, _, level, health)| level.is_none() && health.is_none());
+    if (game_state.is_game_over || game_state.is_level_complete) && !has_game_over {
         let message = if game_state.is_game_over {
             "Game Over\nPress P to Play Again\nPress Q to Exit"
         } else {
@@ -1250,7 +1299,7 @@ fn restart_system(
     player_query: Query<(&mut Transform, &mut PlayerCamera)>,
     enemy_query: Query<Entity, With<Enemy>>,
     bullet_query: Query<Entity, Or<(With<Bullet>, With<EnemyBullet>)>>,
-    game_over_query: Query<Entity, (With<Text>, Without<LevelDisplay>)>,
+    game_over_query: Query<Entity, (With<Text>, Without<LevelDisplay>, Without<HealthDisplay>)>,
     asset_server: Res<AssetServer>,
 ) {
     if (game_state.is_game_over && keyboard.just_pressed(KeyCode::KeyP)) ||
@@ -1369,17 +1418,21 @@ fn update_minimap(
     // Keep track of enemy dots we've updated
     let mut enemy_dots = 0;
 
+    // Get player position safely
+    let player_pos = if let Ok(player_transform) = player_query.get_single() {
+        player_transform.translation
+    } else {
+        return; // Exit if player doesn't exist
+    };
+
     for (entity, mut style, dot_type) in dot_query.iter_mut() {
         match dot_type {
             MinimapDot::Player => {
-                if let Ok(player_transform) = player_query.get_single() {
-                    let pos = player_transform.translation;
-                    let minimap_x = (pos.x + grid_offset) / TILE_SIZE * cell_size;
-                    let minimap_y = (pos.z + grid_offset) / TILE_SIZE * cell_size;
-                    
-                    style.left = Val::Px(MINIMAP_PADDING + minimap_x - MINIMAP_DOT_SIZE/2.0);
-                    style.bottom = Val::Px(MINIMAP_PADDING + MINIMAP_SIZE - minimap_y - MINIMAP_DOT_SIZE/2.0);
-                }
+                let minimap_x = (player_pos.x + grid_offset) / TILE_SIZE * cell_size;
+                let minimap_y = (player_pos.z + grid_offset) / TILE_SIZE * cell_size;
+                
+                style.left = Val::Px(MINIMAP_PADDING + minimap_x - MINIMAP_DOT_SIZE/2.0);
+                style.bottom = Val::Px(MINIMAP_PADDING + MINIMAP_SIZE - minimap_y - MINIMAP_DOT_SIZE/2.0);
             }
             MinimapDot::Enemy => {
                 // If we have an enemy transform for this dot, update it

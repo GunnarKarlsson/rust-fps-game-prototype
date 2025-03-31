@@ -266,7 +266,7 @@ fn spawn_enemy(
         error!("DEBUG: Attempting to spawn skull model as child");
         parent.spawn(SceneBundle {
             scene: asset_server.load("models/skull.glb#Scene0"),
-            transform: Transform::from_scale(Vec3::splat(2.0)),
+            transform: Transform::from_scale(Vec3::splat(0.5)),
             ..default()
         });
         error!("DEBUG: Finished spawning skull model");

@@ -179,6 +179,9 @@ enum MinimapDot {
     Enemy,
 }
 
+#[derive(Component)]
+struct Gun;
+
 fn spawn_wall(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
@@ -607,7 +610,7 @@ fn setup(
         ..default()
     });
 
-    // Create the camera
+    // Create the camera with gun
     commands.spawn((
         Camera3dBundle {
             transform: Transform::from_xyz(0.0, 0.5, 2.0)
@@ -619,7 +622,19 @@ fn setup(
             pitch: 0.0,
             position: Vec3::new(0.0, 0.5, 2.0),
         },
-    ));
+    ))
+    .with_children(|parent| {
+        // Spawn the gun model
+        parent.spawn((
+            SceneBundle {
+                scene: asset_server.load("models/blaster-g.glb#Scene0"),
+                transform: Transform::from_xyz(0.3, -0.2, -0.5) // Position in front and slightly to the right
+                    .with_scale(Vec3::splat(0.5)), // Adjust scale as needed
+                ..default()
+            },
+            Gun,
+        ));
+    });
 
     // Spawn an enemy in an open space
     spawn_enemy(
@@ -759,10 +774,11 @@ fn player_movement(
 }
 
 fn player_look(
-    mut camera_query: Query<(&mut Transform, &mut PlayerCamera)>,
+    mut camera_query: Query<(&mut Transform, &mut PlayerCamera, &Children)>,
     mut motion_evr: EventReader<MouseMotion>,
+    mut gun_query: Query<&mut Transform, (With<Gun>, Without<PlayerCamera>)>,
 ) {
-    let (mut transform, mut camera) = camera_query.single_mut();
+    let (mut transform, mut camera, children) = camera_query.single_mut();
 
     for ev in motion_evr.read() {
         camera.yaw -= ev.delta.x * MOUSE_SENSITIVITY;
@@ -776,6 +792,14 @@ fn player_look(
     let rotation =
         Quat::from_axis_angle(Vec3::Y, camera.yaw) * Quat::from_axis_angle(Vec3::X, camera.pitch);
     transform.rotation = rotation;
+
+    // Update gun position based on camera rotation
+    for child in children.iter() {
+        if let Ok(mut gun_transform) = gun_query.get_mut(*child) {
+            // Keep the gun's local position relative to the camera
+            gun_transform.rotation = Quat::IDENTITY;
+        }
+    }
 }
 
 fn cursor_grab_system(

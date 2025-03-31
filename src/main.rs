@@ -185,6 +185,10 @@ enum MinimapDot {
 #[derive(Component)]
 struct Gun;
 
+// Add this component for the level display
+#[derive(Component)]
+struct LevelDisplay;
+
 fn spawn_wall(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
@@ -1181,9 +1185,32 @@ fn update_enemy_bullets(
 fn game_over_ui(
     mut commands: Commands,
     game_state: Res<GameState>,
-    query: Query<Entity, With<Text>>,
+    level_display_query: Query<Entity, With<LevelDisplay>>,
+    game_over_query: Query<Entity, (With<Text>, Without<LevelDisplay>)>,
 ) {
-    if (game_state.is_game_over || game_state.is_level_complete) && query.is_empty() {
+    // Spawn level display if it doesn't exist
+    if level_display_query.is_empty() {
+        commands.spawn((
+            TextBundle::from_section(
+                format!("Level {}", game_state.current_level),
+                TextStyle {
+                    font_size: 30.0,
+                    color: Color::WHITE,
+                    ..default()
+                },
+            )
+            .with_style(Style {
+                position_type: PositionType::Absolute,
+                top: Val::Px(20.0),
+                right: Val::Px(20.0),
+                ..default()
+            }),
+            LevelDisplay,
+        ));
+    }
+
+    // Spawn game over or level complete message if needed
+    if (game_state.is_game_over || game_state.is_level_complete) && game_over_query.is_empty() {
         let message = if game_state.is_game_over {
             "Game Over\nPress P to Play Again\nPress Q to Exit"
         } else {
@@ -1192,7 +1219,7 @@ fn game_over_ui(
                 game_state.current_level + 1)
         };
 
-        commands.spawn(
+        commands.spawn((
             TextBundle::from_section(
                 message,
                 TextStyle {
@@ -1208,7 +1235,7 @@ fn game_over_ui(
                 right: Val::Auto,
                 ..default()
             }),
-        );
+        ));
     }
 }
 
@@ -1219,13 +1246,13 @@ fn restart_system(
     player_query: Query<(&mut Transform, &mut PlayerCamera)>,
     enemy_query: Query<Entity, With<Enemy>>,
     bullet_query: Query<Entity, Or<(With<Bullet>, With<EnemyBullet>)>>,
-    text_query: Query<Entity, With<Text>>,
+    game_over_query: Query<Entity, (With<Text>, Without<LevelDisplay>)>,
     asset_server: Res<AssetServer>,
 ) {
     if (game_state.is_game_over && keyboard.just_pressed(KeyCode::KeyP)) ||
        (game_state.is_level_complete && keyboard.just_pressed(KeyCode::KeyS)) {
-        // Remove game over text
-        for entity in text_query.iter() {
+        // Remove only game over/level complete text, keep level display
+        for entity in game_over_query.iter() {
             commands.entity(entity).despawn();
         }
 

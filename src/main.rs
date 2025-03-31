@@ -23,6 +23,7 @@ const ENEMY_SHOOT_RATE: f32 = 4.0; // Changed from 1.0 to 2.0 seconds between sh
 const ENEMY_BULLET_SPEED: f32 = 6.0; // Changed from 8.0 to 6.0 meters per second
 const ENEMY_BULLET_SIZE: f32 = 0.1;
 const ENEMY_BULLET_LIFETIME: f32 = 5.0;
+const ENEMY_BULLET_HIT_RADIUS: f32 = 1.0; // Larger radius for bullet hit detection
 
 // Add these constants for the minimap
 const MINIMAP_SIZE: f32 = 150.0; // Size in pixels
@@ -984,10 +985,10 @@ fn update_bullets(
         // Update position
         let new_position = transform.translation + bullet.velocity * time.delta_seconds();
         
-        // Check for enemy collision
+        // Check for enemy collision using the larger hit radius
         for (enemy_entity, enemy_transform) in enemy_query.iter() {
             let distance = enemy_transform.translation.distance(transform.translation);
-            if distance < (ENEMY_SIZE + BULLET_SIZE) {
+            if distance < (ENEMY_BULLET_HIT_RADIUS + BULLET_SIZE) {
                 // Set win state
                 game_state.is_game_over = true;
                 game_state.has_won = true;

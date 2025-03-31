@@ -970,9 +970,9 @@ fn update_bullets(
                 // Remove the enemy
                 commands.entity(enemy_entity).despawn();
                 
-                // Remove bullet and its light
+                // Remove bullet, its light, and all children
                 commands.entity(bullet.light).despawn();
-                commands.entity(entity).despawn();
+                commands.entity(entity).despawn_recursive();
                 continue;
             }
         }
@@ -983,9 +983,9 @@ fn update_bullets(
             // Spawn particle explosion at collision point
             spawn_particle_explosion(&mut commands, &mut meshes, &mut materials, transform.translation);
             
-            // Remove bullet and its light
+            // Remove bullet, its light, and all children
             commands.entity(bullet.light).despawn();
-            commands.entity(entity).despawn();
+            commands.entity(entity).despawn_recursive();
             continue;
         }
 
@@ -994,9 +994,9 @@ fn update_bullets(
             // Spawn particle explosion at collision point
             spawn_particle_explosion(&mut commands, &mut meshes, &mut materials, transform.translation);
             
-            // Remove bullet and its light
+            // Remove bullet, its light, and all children
             commands.entity(bullet.light).despawn();
-            commands.entity(entity).despawn();
+            commands.entity(entity).despawn_recursive();
             continue;
         }
 
@@ -1011,10 +1011,10 @@ fn update_bullets(
         // Update lifetime
         bullet.lifetime -= time.delta_seconds();
 
-        // Remove bullet and its light if lifetime is up
+        // Remove bullet, its light, and all children if lifetime is up
         if bullet.lifetime <= 0.0 {
             commands.entity(bullet.light).despawn();
-            commands.entity(entity).despawn();
+            commands.entity(entity).despawn_recursive();
         }
     }
 }

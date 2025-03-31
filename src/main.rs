@@ -837,6 +837,7 @@ fn shoot_bullet(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    asset_server: Res<AssetServer>,
     keyboard: Res<ButtonInput<KeyCode>>,
     camera_query: Query<(&Transform, &PlayerCamera)>,
 ) {
@@ -867,18 +868,14 @@ fn shoot_bullet(
                 },
             ))
             .with_children(|parent| {
-                error!("DEBUG: Attempting to spawn bullet sphere");
-                parent.spawn(PbrBundle {
-                    mesh: meshes.add(Mesh::from(bevy::math::primitives::Sphere::new(0.1))),
-                    material: materials.add(StandardMaterial {
-                        base_color: Color::rgb(1.0, 0.0, 0.0),
-                        emissive: Color::rgb(1.0, 0.0, 0.0) * 50.0,
-                        ..default()
-                    }),
-                    transform: Transform::IDENTITY,
+                error!("DEBUG: Attempting to spawn bullet model");
+                parent.spawn(SceneBundle {
+                    scene: asset_server.load("models/bullet.glb#Scene0"),
+                    transform: Transform::from_scale(Vec3::splat(4.0))
+                        .with_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_4 * 2.0)), // 45-degree rotation around X-axis
                     ..default()
                 });
-                error!("DEBUG: Finished spawning bullet sphere");
+                error!("DEBUG: Finished spawning bullet model");
             })
             .id();
 

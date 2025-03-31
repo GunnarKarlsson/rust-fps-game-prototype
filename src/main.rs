@@ -155,6 +155,7 @@ struct EnemyBullet {
 #[derive(Resource)]
 struct GameState {
     is_game_over: bool,
+    has_won: bool,
 }
 
 fn spawn_wall(
@@ -257,6 +258,7 @@ fn reset_game(
 ) {
     // Reset game state
     game_state.is_game_over = false;
+    game_state.has_won = false;
 
     // Reset player position and rotation
     if let Ok((mut transform, mut camera)) = player_query.get_single_mut() {
@@ -304,7 +306,10 @@ fn main() {
             ..default()
         }))
         .insert_resource(ClearColor(Color::rgb(0.4, 0.6, 1.0)))
-        .insert_resource(GameState { is_game_over: false })
+        .insert_resource(GameState { 
+            is_game_over: false,
+            has_won: false,
+        })
         .add_systems(Startup, (setup, center_cursor))
         .add_systems(
             Update,
@@ -870,6 +875,7 @@ fn update_bullets(
     mut bullet_query: Query<(Entity, &mut Transform, &mut Bullet)>,
     mut light_query: Query<&mut Transform, (Without<Bullet>, Without<Enemy>)>,
     enemy_query: Query<(Entity, &Transform), (With<Enemy>, Without<Bullet>)>,
+    mut game_state: ResMut<GameState>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
@@ -881,6 +887,10 @@ fn update_bullets(
         for (enemy_entity, enemy_transform) in enemy_query.iter() {
             let distance = enemy_transform.translation.distance(transform.translation);
             if distance < (ENEMY_SIZE + BULLET_SIZE) {
+                // Set win state
+                game_state.is_game_over = true;
+                game_state.has_won = true;
+
                 // Spawn particle explosion at enemy position
                 spawn_particle_explosion(&mut commands, &mut meshes, &mut materials, enemy_transform.translation);
                 
@@ -1078,12 +1088,18 @@ fn game_over_ui(
     query: Query<Entity, With<Text>>,
 ) {
     if game_state.is_game_over && query.is_empty() {
+        let message = if game_state.has_won {
+            "You Win!\nPress P to Play Again\nPress Q to Exit"
+        } else {
+            "Game Over\nPress P to Play Again\nPress Q to Exit"
+        };
+
         commands.spawn(
             TextBundle::from_section(
-                "Game Over\nPress P to Play Again\nPress Q to Exit",
+                message,
                 TextStyle {
                     font_size: 50.0,
-                    color: Color::RED,
+                    color: if game_state.has_won { Color::GREEN } else { Color::RED },
                     ..default()
                 },
             )

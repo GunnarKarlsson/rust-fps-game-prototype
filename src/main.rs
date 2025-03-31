@@ -11,7 +11,7 @@ const MOUSE_SENSITIVITY: f32 = 0.002;
 const GRID_SIZE: usize = 20;
 const TILE_SIZE: f32 = 1.0;
 const PLAYER_RADIUS: f32 = 0.3; // Player's collision radius
-const BULLET_SPEED: f32 = 6.0; // Doubled from 0.5 to 1.0 meters per second
+const BULLET_SPEED: f32 = 8.0; // Doubled from 0.5 to 1.0 meters per second
 const BULLET_LIFETIME: f32 = 10.0; // 10 meters at 1.0 m/s = 10 seconds
 const BULLET_SIZE: f32 = 0.1; // Size of the bullet
 const BULLET_LIGHT_INTENSITY: f32 = 300000.0;
@@ -872,7 +872,7 @@ fn shoot_bullet(
                 error!("DEBUG: Attempting to spawn bullet model");
                 parent.spawn(SceneBundle {
                     scene: asset_server.load("models/bullet.glb#Scene0"),
-                    transform: Transform::from_scale(Vec3::splat(4.0))
+                    transform: Transform::from_scale(Vec3::splat(2.0))
                         .with_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_4 * 2.0)), // 45-degree rotation around X-axis
                     ..default()
                 });

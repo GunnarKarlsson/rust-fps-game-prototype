@@ -124,6 +124,11 @@ const GRID_LAYOUT: [[bool; GRID_SIZE]; GRID_SIZE] = [
     ],
 ];
 
+#[derive(Resource)]
+struct CurrentLevel {
+    number: u32,
+}
+
 #[derive(Component)]
 struct Bullet {
     velocity: Vec3,
@@ -271,6 +276,7 @@ fn reset_game(
     bullet_query: Query<Entity, Or<(With<Bullet>, With<EnemyBullet>)>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    current_level: ResMut<CurrentLevel>,
 ) {
     // Reset game state
     game_state.is_game_over = false;
@@ -326,6 +332,7 @@ fn main() {
             is_game_over: false,
             has_won: false,
         })
+        .insert_resource(CurrentLevel { number: 1 })
         .add_systems(Startup, (setup, center_cursor, spawn_minimap))
         .add_systems(
             Update,
@@ -1141,6 +1148,7 @@ fn restart_system(
     text_query: Query<Entity, With<Text>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    current_level: ResMut<CurrentLevel>,
 ) {
     if game_state.is_game_over && (
         (keyboard.just_pressed(KeyCode::KeyP) && !game_state.has_won) ||
@@ -1160,6 +1168,7 @@ fn restart_system(
             bullet_query,
             meshes,
             materials,
+            current_level
         );
     }
 }

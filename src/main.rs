@@ -1466,7 +1466,7 @@ fn restart_system(
 fn spawn_minimap(
     mut commands: Commands,
 ) {
-    // Spawn minimap background
+    // Spawn minimap background with lower z-index
     commands.spawn((
         NodeBundle {
             style: Style {
@@ -1716,9 +1716,9 @@ fn start_screen_system(
     start_screen_query: Query<Entity, With<StartScreen>>,
 ) {
     if !game_state.has_started && keyboard.just_pressed(KeyCode::KeyS) {
-        // Remove start screen
+        // Remove all start screen entities (background, title, instructions, and start prompt)
         for entity in start_screen_query.iter() {
-            commands.entity(entity).despawn();
+            commands.entity(entity).despawn_recursive(); // Use despawn_recursive to remove all children
         }
         game_state.has_started = true;
     }
@@ -1726,22 +1726,68 @@ fn start_screen_system(
 
 // Add this new function to spawn the start screen
 fn spawn_start_screen(mut commands: Commands) {
+    // Create a parent node that will contain all start screen elements
     commands.spawn((
-        TextBundle::from_section(
-            "Infinite Ammo\nPress S to Start",
+        NodeBundle {
+            style: Style {
+                position_type: PositionType::Absolute,
+                left: Val::Px(0.0),
+                right: Val::Px(0.0),
+                top: Val::Px(0.0),
+                bottom: Val::Px(0.0),
+                ..default()
+            },
+            background_color: BackgroundColor(Color::rgb(0.1, 0.1, 0.1)), // Dark gray background
+            ..default()
+        },
+        StartScreen,
+    )).with_children(|parent| {
+        // Spawn title text
+        parent.spawn(TextBundle::from_section(
+            "Infinite Ammo",
             TextStyle {
-                font_size: 60.0,
+                font_size: 80.0,
                 color: Color::WHITE,
                 ..default()
             },
-        )
-        .with_style(Style {
+        ).with_style(Style {
             position_type: PositionType::Absolute,
             top: Val::Px(100.0),
             left: Val::Auto,
             right: Val::Auto,
             ..default()
-        }),
-        StartScreen,
-    ));
+        }));
+
+        // Spawn instructions text
+        parent.spawn(TextBundle::from_section(
+            "Instructions:\nSpacebar => Shoot\nKill all enemies to level up\nRestore health with food",
+            TextStyle {
+                font_size: 30.0,
+                color: Color::rgb(0.8, 0.8, 0.8),
+                ..default()
+            },
+        ).with_style(Style {
+            position_type: PositionType::Absolute,
+            top: Val::Px(250.0),
+            left: Val::Auto,
+            right: Val::Auto,
+            ..default()
+        }));
+
+        // Spawn start prompt text
+        parent.spawn(TextBundle::from_section(
+            "Press S to Start",
+            TextStyle {
+                font_size: 40.0,
+                color: Color::rgb(0.0, 1.0, 0.0), // Green color for emphasis
+                ..default()
+            },
+        ).with_style(Style {
+            position_type: PositionType::Absolute,
+            top: Val::Px(400.0),
+            left: Val::Auto,
+            right: Val::Auto,
+            ..default()
+        }));
+    });
 }

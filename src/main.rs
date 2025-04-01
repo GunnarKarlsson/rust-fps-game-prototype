@@ -4,7 +4,9 @@ use bevy::{
     prelude::*,
     render::texture::{ImageAddressMode, ImageSampler, ImageSamplerDescriptor},
     window::WindowMode,
+    reflect::TypePath,
 };
+use bevy_common_assets::json::JsonAssetPlugin;
 
 const PLAYER_SPEED: f32 = 5.0;
 const MOUSE_SENSITIVITY: f32 = 0.002;
@@ -29,6 +31,14 @@ const ENEMY_BULLET_HIT_RADIUS: f32 = 1.0; // Larger radius for bullet hit detect
 const MINIMAP_SIZE: f32 = 150.0; // Size in pixels
 const MINIMAP_PADDING: f32 = 20.0; // Padding from screen edges
 const MINIMAP_DOT_SIZE: f32 = 6.0; // Size of player/enemy dots
+
+#[derive(serde::Deserialize, Asset, TypePath, Debug)]
+struct Level {
+    grid_layout: Vec<[bool; 20]>,
+}
+
+#[derive(Resource)]
+struct LevelHandle(Handle<Level>);
 
 #[derive(Component)]
 struct Wall {}
@@ -505,14 +515,10 @@ fn reset_game(
 
 fn main() {
     App::new()
-        .add_plugins(DefaultPlugins.set(WindowPlugin {
-            primary_window: Some(Window {
-                mode: WindowMode::Windowed,
-                title: "Wolfenstein 3D Clone".to_string(),
-                ..default()
-            }),
-            ..default()
-        }))
+    .add_plugins((
+        DefaultPlugins,
+        JsonAssetPlugin::<Level>::new(&["level.json"]),
+    ))
         .insert_resource(ClearColor(Color::rgb(0.4, 0.6, 1.0)))
         .insert_resource(GameState { 
             is_game_over: false,
@@ -554,6 +560,11 @@ fn setup(
     mut images: ResMut<Assets<Image>>,
     asset_server: Res<AssetServer>,
 ) {
+
+    // Load the level json
+    let level = LevelHandle(asset_server.load("1.level.json"));
+    commands.insert_resource(level);
+
     // Load the textures
     let wall_texture = asset_server.load("stone.png");
     let floor_texture = asset_server.load("floor.png");
@@ -1758,7 +1769,15 @@ fn start_screen_system(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut game_state: ResMut<GameState>,
     start_screen_query: Query<Entity, With<StartScreen>>,
+    level: Res<LevelHandle>,
+    mut levels: ResMut<Assets<Level>>,
 ) {
+    if let Some(level) = levels.remove(level.0.id()) {
+        println!("level: {:?}", level);
+        for row in level.grid_layout {
+
+        }
+    }
     if !game_state.has_started && keyboard.just_pressed(KeyCode::KeyS) {
         // Remove all start screen entities (background, title, instructions, and start prompt)
         for entity in start_screen_query.iter() {

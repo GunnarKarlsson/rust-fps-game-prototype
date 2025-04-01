@@ -204,6 +204,12 @@ struct HealthPickup {
 #[derive(Component)]
 struct StartScreen;
 
+// Add this component after the other component definitions
+#[derive(Component)]
+struct HealthPickupRotation {
+    rotation_speed: f32,
+}
+
 fn spawn_wall(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
@@ -1626,11 +1632,16 @@ fn spawn_health_pickups(
                 (5.0 * TILE_SIZE) - grid_offset,
                 0.0, // Halfway between floor and ceiling
                 (10.0 * TILE_SIZE) - grid_offset,
-            ).with_scale(Vec3::splat(1.0)),
+            )
+            .with_scale(Vec3::splat(1.0))
+            .with_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_4)), // 45-degree tilt
             ..default()
         },
         HealthPickup {
             health_amount: 20,
+        },
+        HealthPickupRotation {
+            rotation_speed: 1.0, // Rotate 1 radian per second
         },
     )).with_children(|parent| {
         // Add green light above the bottle
@@ -1655,11 +1666,16 @@ fn spawn_health_pickups(
                 (5.0 * TILE_SIZE) - grid_offset,
                 0.0,
                 (12.0 * TILE_SIZE) - grid_offset,
-            ).with_scale(Vec3::splat(1.0)),
+            )
+            .with_scale(Vec3::splat(1.0))
+            .with_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_4)), // 45-degree tilt
             ..default()
         },
         HealthPickup {
             health_amount: 20,
+        },
+        HealthPickupRotation {
+            rotation_speed: 1.0, // Rotate 1 radian per second
         },
     )).with_children(|parent| {
         // Add green light above the soda bottle
@@ -1679,15 +1695,19 @@ fn spawn_health_pickups(
 
 fn update_health_pickups(
     mut commands: Commands,
-    mut pickup_query: Query<(Entity, &Transform, &HealthPickup)>,
-    player_query: Query<&Transform, With<PlayerCamera>>,
+    time: Res<Time>,
+    mut pickup_query: Query<(Entity, &mut Transform, &HealthPickup, &HealthPickupRotation)>,
+    player_query: Query<&Transform, (With<PlayerCamera>, Without<HealthPickup>)>,
     mut game_state: ResMut<GameState>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     let player_transform = player_query.single();
     
-    for (entity, transform, pickup) in pickup_query.iter() {
+    for (entity, mut transform, pickup, rotation) in pickup_query.iter_mut() {
+        // Update rotation
+        transform.rotate_y(rotation.rotation_speed * time.delta_seconds());
+        
         let distance = player_transform.translation.distance(transform.translation);
         
         if distance < (PLAYER_RADIUS + 0.5) { // 0.5 is the pickup radius

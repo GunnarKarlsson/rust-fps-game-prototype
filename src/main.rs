@@ -238,6 +238,9 @@ struct DamageFlash {
     lifetime: f32,
 }
 
+#[derive(Component)]
+struct ShieldMaterial;
+
 fn spawn_wall(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
@@ -392,6 +395,7 @@ fn reset_game(
     bullet_query: Query<Entity, Or<(With<Bullet>, With<EnemyBullet>)>>,
     pickup_query: Query<Entity, Or<(With<HealthPickup>, With<ShieldPickup>)>>,
     asset_server: Res<AssetServer>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     // Reset game state
     game_state.is_game_over = false;
@@ -552,6 +556,7 @@ fn reset_game(
                 ShieldPickupRotation {
                     rotation_speed: 1.0,
                 },
+                ShieldMaterial,
             )).with_children(|parent| {
                 // Add blue light above the shield
                 parent.spawn(PointLightBundle {
@@ -562,7 +567,7 @@ fn reset_game(
                         shadows_enabled: true,
                         ..default()
                     },
-                    transform: Transform::from_xyz(0.0, 0.7, 0.0),
+                    transform: Transform::from_xyz(0.0, 1.0, 0.0),
                     ..default()
                 });
             });
@@ -608,6 +613,7 @@ fn main() {
                 quit_system.run_if(|state: Res<GameState>| state.has_started),
                 update_health_pickups.run_if(|state: Res<GameState>| state.has_started),
                 update_shield_pickups.run_if(|state: Res<GameState>| state.has_started),
+                update_shield_material.run_if(|state: Res<GameState>| state.has_started),
                 update_damage_flash.run_if(|state: Res<GameState>| state.has_started),
             )
         )
@@ -1581,6 +1587,7 @@ fn restart_system(
     pickup_query: Query<Entity, Or<(With<HealthPickup>, With<ShieldPickup>)>>,
     game_over_query: Query<Entity, (With<Text>, Without<LevelDisplay>, Without<HealthDisplay>)>,
     asset_server: Res<AssetServer>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     if (game_state.is_game_over && keyboard.just_pressed(KeyCode::KeyP)) ||
        (game_state.is_level_complete && keyboard.just_pressed(KeyCode::KeyS)) {
@@ -1604,6 +1611,7 @@ fn restart_system(
             bullet_query,
             pickup_query,
             asset_server,
+            materials,
         );
     }
 }
@@ -2002,5 +2010,23 @@ fn update_damage_flash(
         if flash.lifetime <= 0.0 {
             commands.entity(entity).despawn();
         }
+    }
+}
+
+fn update_shield_material(
+    mut commands: Commands,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    shield_query: Query<Entity, With<ShieldMaterial>>,
+) {
+    for entity in shield_query.iter() {
+        // Create emissive blue material for the shield
+        let shield_material = materials.add(StandardMaterial {
+            base_color: Color::rgb(0.0, 0.0, 1.0), // Blue base color
+            emissive: Color::rgb(0.0, 0.0, 20.0),   // Blue emissive glow (doubled intensity)
+            ..default()
+        });
+
+        // Remove the ShieldMaterial component since we've applied the material
+        commands.entity(entity).remove::<ShieldMaterial>();
     }
 }

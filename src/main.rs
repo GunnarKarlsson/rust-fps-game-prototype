@@ -226,6 +226,14 @@ struct HealthPickupRotation {
 }
 
 #[derive(Component)]
+struct ShieldPickup;
+
+#[derive(Component)]
+struct ShieldPickupRotation {
+    rotation_speed: f32,
+}
+
+#[derive(Component)]
 struct DamageFlash {
     lifetime: f32,
 }
@@ -382,7 +390,7 @@ fn reset_game(
     mut player_query: Query<(&mut Transform, &mut PlayerCamera)>,
     enemy_query: Query<Entity, With<Enemy>>,
     bullet_query: Query<Entity, Or<(With<Bullet>, With<EnemyBullet>)>>,
-    pickup_query: Query<Entity, With<HealthPickup>>,
+    pickup_query: Query<Entity, Or<(With<HealthPickup>, With<ShieldPickup>)>>,
     asset_server: Res<AssetServer>,
 ) {
     // Reset game state
@@ -415,7 +423,7 @@ fn reset_game(
         }
     }
 
-    // Remove all existing health pickups
+    // Remove all existing pickups
     for entity in pickup_query.iter() {
         if let Some(mut pickup) = commands.get_entity(entity) {
             pickup.despawn_recursive();
@@ -519,10 +527,48 @@ fn reset_game(
         attempts += 1;
     }
 
-    // If we couldn't spawn all health pickups, log a warning
-    if pickups_spawned < 2 {
-        error!("Could only spawn {} out of 2 health pickups due to space constraints", 
-            pickups_spawned);
+    // Spawn shield pickup in a random valid position
+    attempts = 0;
+    while attempts < MAX_ATTEMPTS {
+        let x = rand::random::<usize>() % GRID_SIZE;
+        let z = rand::random::<usize>() % GRID_SIZE;
+
+        if is_valid_spawn_position(x, z) {
+            let world_pos = Vec3::new(
+                (x as f32 * TILE_SIZE) - grid_offset,
+                0.2,
+                (z as f32 * TILE_SIZE) - grid_offset,
+            );
+
+            commands.spawn((
+                SceneBundle {
+                    scene: asset_server.load("models/shield.glb#Scene0"),
+                    transform: Transform::from_translation(world_pos)
+                        .with_scale(Vec3::splat(0.5))
+                        .with_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_4)), // 45-degree tilt
+                    ..default()
+                },
+                ShieldPickup,
+                ShieldPickupRotation {
+                    rotation_speed: 1.0,
+                },
+            )).with_children(|parent| {
+                // Add blue light above the shield
+                parent.spawn(PointLightBundle {
+                    point_light: PointLight {
+                        color: Color::rgb(0.0, 0.0, 1.0), // Blue light
+                        intensity: 50000.0,
+                        range: 3.0,
+                        shadows_enabled: true,
+                        ..default()
+                    },
+                    transform: Transform::from_xyz(0.0, 0.7, 0.0),
+                    ..default()
+                });
+            });
+            break;
+        }
+        attempts += 1;
     }
 }
 
@@ -561,6 +607,7 @@ fn main() {
                 restart_system.run_if(|state: Res<GameState>| state.has_started),
                 quit_system.run_if(|state: Res<GameState>| state.has_started),
                 update_health_pickups.run_if(|state: Res<GameState>| state.has_started),
+                update_shield_pickups.run_if(|state: Res<GameState>| state.has_started),
                 update_damage_flash.run_if(|state: Res<GameState>| state.has_started),
             )
         )
@@ -1371,37 +1418,40 @@ fn update_enemy_bullets(
         // Check for player collision
         let distance = player_transform.translation.distance(transform.translation);
         if distance < (PLAYER_RADIUS + ENEMY_BULLET_SIZE) {
-            // Reduce health by 20
-            if game_state.player_health > 20 {
-                game_state.player_health -= 20;
-            } else {
-                game_state.player_health = 0;
-                game_state.is_game_over = true;
-            }
+            // Only apply damage if the game is not in a level complete state
+            if !game_state.is_level_complete {
+                // Reduce health by 20
+                if game_state.player_health > 20 {
+                    game_state.player_health -= 20;
+                } else {
+                    game_state.player_health = 0;
+                    game_state.is_game_over = true;
+                }
 
-            // Remove any existing flash
-            for flash_entity in flash_query.iter() {
-                commands.entity(flash_entity).despawn();
-            }
+                // Remove any existing flash
+                for flash_entity in flash_query.iter() {
+                    commands.entity(flash_entity).despawn();
+                }
 
-            // Spawn new flash effect
-            commands.spawn((
-                NodeBundle {
-                    style: Style {
-                        position_type: PositionType::Absolute,
-                        left: Val::Px(0.0),
-                        right: Val::Px(0.0),
-                        top: Val::Px(0.0),
-                        bottom: Val::Px(0.0),
+                // Spawn new flash effect
+                commands.spawn((
+                    NodeBundle {
+                        style: Style {
+                            position_type: PositionType::Absolute,
+                            left: Val::Px(0.0),
+                            right: Val::Px(0.0),
+                            top: Val::Px(0.0),
+                            bottom: Val::Px(0.0),
+                            ..default()
+                        },
+                        background_color: BackgroundColor(Color::rgba(1.0, 0.0, 0.0, 0.3)), // Semi-transparent red
                         ..default()
                     },
-                    background_color: BackgroundColor(Color::rgba(1.0, 0.0, 0.0, 0.3)), // Semi-transparent red
-                    ..default()
-                },
-                DamageFlash {
-                    lifetime: 0.1, // Flash lasts 0.2 seconds
-                },
-            ));
+                    DamageFlash {
+                        lifetime: 0.1, // Flash lasts 0.2 seconds
+                    },
+                ));
+            }
 
             // Remove the bullet and all its children (model and light)
             commands.entity(entity).despawn_recursive();
@@ -1528,7 +1578,7 @@ fn restart_system(
     player_query: Query<(&mut Transform, &mut PlayerCamera)>,
     enemy_query: Query<Entity, With<Enemy>>,
     bullet_query: Query<Entity, Or<(With<Bullet>, With<EnemyBullet>)>>,
-    pickup_query: Query<Entity, With<HealthPickup>>,
+    pickup_query: Query<Entity, Or<(With<HealthPickup>, With<ShieldPickup>)>>,
     game_over_query: Query<Entity, (With<Text>, Without<LevelDisplay>, Without<HealthDisplay>)>,
     asset_server: Res<AssetServer>,
 ) {
@@ -1814,6 +1864,38 @@ fn update_health_pickups(
             game_state.player_health = (game_state.player_health + pickup.health_amount).min(100);
             
             // Remove the pickup
+            commands.entity(entity).despawn_recursive();
+        }
+    }
+}
+
+fn update_shield_pickups(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut pickup_query: Query<(Entity, &mut Transform, &ShieldPickupRotation), With<ShieldPickup>>,
+    player_query: Query<&Transform, (With<PlayerCamera>, Without<ShieldPickup>)>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    let player_transform = player_query.single();
+    
+    for (entity, mut transform, rotation) in pickup_query.iter_mut() {
+        // Update rotation
+        transform.rotate_y(rotation.rotation_speed * time.delta_seconds());
+        
+        let distance = player_transform.translation.distance(transform.translation);
+        
+        if distance < (PLAYER_RADIUS + 0.5) { // 0.5 is the pickup radius
+            // Spawn particle effect with blue color for shield pickup
+            spawn_particle_explosion(
+                &mut commands,
+                &mut meshes,
+                &mut materials,
+                transform.translation,
+                Color::rgb(0.0, 0.0, 1.0), // Blue particles for shield pickup
+            );
+            
+            // Remove the pickup and its children (including the light)
             commands.entity(entity).despawn_recursive();
         }
     }

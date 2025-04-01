@@ -186,6 +186,7 @@ struct GameState {
     current_level: u32,
     player_health: u32,
     has_started: bool,
+    shield_value: u32,
 }
 
 // Add this component to identify minimap entities
@@ -240,6 +241,10 @@ struct DamageFlash {
 
 #[derive(Component)]
 struct ShieldMaterial;
+
+// Add this component for the shield display
+#[derive(Component)]
+struct ShieldDisplay;
 
 fn spawn_wall(
     commands: &mut Commands,
@@ -591,6 +596,7 @@ fn main() {
             current_level: 1,
             player_health: 100,
             has_started: false,
+            shield_value: 0,
         })
         .insert_resource(CurrentLevel { number: 1 })
         .add_systems(Startup, (setup, center_cursor, spawn_minimap, spawn_health_pickups, spawn_start_screen))
@@ -615,6 +621,7 @@ fn main() {
                 update_shield_pickups.run_if(|state: Res<GameState>| state.has_started),
                 update_shield_material.run_if(|state: Res<GameState>| state.has_started),
                 update_damage_flash.run_if(|state: Res<GameState>| state.has_started),
+                update_shield_value.run_if(|state: Res<GameState>| state.has_started),
             )
         )
         .run();
@@ -1426,37 +1433,42 @@ fn update_enemy_bullets(
         if distance < (PLAYER_RADIUS + ENEMY_BULLET_SIZE) {
             // Only apply damage if the game is not in a level complete state
             if !game_state.is_level_complete {
-                // Reduce health by 20
-                if game_state.player_health > 20 {
-                    game_state.player_health -= 20;
+                if game_state.shield_value > 0 {
+                    // If shield is active, don't reduce health
+                    // Optionally, you could reduce shield value here as well
                 } else {
-                    game_state.player_health = 0;
-                    game_state.is_game_over = true;
-                }
+                    // No shield, reduce health
+                    if game_state.player_health > 20 {
+                        game_state.player_health -= 20;
+                    } else {
+                        game_state.player_health = 0;
+                        game_state.is_game_over = true;
+                    }
 
-                // Remove any existing flash
-                for flash_entity in flash_query.iter() {
-                    commands.entity(flash_entity).despawn();
-                }
+                    // Remove any existing flash
+                    for flash_entity in flash_query.iter() {
+                        commands.entity(flash_entity).despawn();
+                    }
 
-                // Spawn new flash effect
-                commands.spawn((
-                    NodeBundle {
-                        style: Style {
-                            position_type: PositionType::Absolute,
-                            left: Val::Px(0.0),
-                            right: Val::Px(0.0),
-                            top: Val::Px(0.0),
-                            bottom: Val::Px(0.0),
+                    // Spawn new flash effect
+                    commands.spawn((
+                        NodeBundle {
+                            style: Style {
+                                position_type: PositionType::Absolute,
+                                left: Val::Px(0.0),
+                                right: Val::Px(0.0),
+                                top: Val::Px(0.0),
+                                bottom: Val::Px(0.0),
+                                ..default()
+                            },
+                            background_color: BackgroundColor(Color::rgba(1.0, 0.0, 0.0, 0.3)), // Semi-transparent red
                             ..default()
                         },
-                        background_color: BackgroundColor(Color::rgba(1.0, 0.0, 0.0, 0.3)), // Semi-transparent red
-                        ..default()
-                    },
-                    DamageFlash {
-                        lifetime: 0.1, // Flash lasts 0.2 seconds
-                    },
-                ));
+                        DamageFlash {
+                            lifetime: 0.1, // Flash lasts 0.1 seconds
+                        },
+                    ));
+                }
             }
 
             // Remove the bullet and all its children (model and light)
@@ -1487,13 +1499,14 @@ fn update_enemy_bullets(
 fn game_over_ui(
     mut commands: Commands,
     game_state: Res<GameState>,
-    mut text_query: Query<(Entity, &mut Text, Option<&LevelDisplay>, Option<&HealthDisplay>)>,
+    mut text_query: Query<(Entity, &mut Text, Option<&LevelDisplay>, Option<&HealthDisplay>, Option<&ShieldDisplay>)>,
 ) {
     // Update or spawn level display
     let mut has_level_display = false;
     let mut has_health_display = false;
+    let mut has_shield_display = false;
     
-    for (entity, mut text, level_display, health_display) in text_query.iter_mut() {
+    for (entity, mut text, level_display, health_display, shield_display) in text_query.iter_mut() {
         if level_display.is_some() {
             has_level_display = true;
             text.sections[0].value = format!("Level {}", game_state.current_level);
@@ -1501,6 +1514,10 @@ fn game_over_ui(
         if health_display.is_some() {
             has_health_display = true;
             text.sections[0].value = format!("Health: {}%", game_state.player_health);
+        }
+        if shield_display.is_some() {
+            has_shield_display = true;
+            text.sections[0].value = format!("Shield: {}%", game_state.shield_value);
         }
     }
 
@@ -1546,8 +1563,29 @@ fn game_over_ui(
         ));
     }
 
+    // Spawn shield display if it doesn't exist
+    if !has_shield_display {
+        commands.spawn((
+            TextBundle::from_section(
+                format!("Shield: {}%", game_state.shield_value),
+                TextStyle {
+                    font_size: 30.0,
+                    color: Color::rgb(0.0, 0.0, 1.0), // Blue color for shield
+                    ..default()
+                },
+            )
+            .with_style(Style {
+                position_type: PositionType::Absolute,
+                top: Val::Px(20.0),
+                right: Val::Px(380.0),
+                ..default()
+            }),
+            ShieldDisplay,
+        ));
+    }
+
     // Check if we need to spawn game over message
-    let has_game_over = text_query.iter().any(|(_, _, level, health)| level.is_none() && health.is_none());
+    let has_game_over = text_query.iter().any(|(_, _, level, health, shield)| level.is_none() && health.is_none() && shield.is_none());
     if (game_state.is_game_over || game_state.is_level_complete) && !has_game_over {
         let message = if game_state.is_game_over {
             "Game Over\nPress P to Play Again\nPress Q to Exit"
@@ -1585,7 +1623,7 @@ fn restart_system(
     enemy_query: Query<Entity, With<Enemy>>,
     bullet_query: Query<Entity, Or<(With<Bullet>, With<EnemyBullet>)>>,
     pickup_query: Query<Entity, Or<(With<HealthPickup>, With<ShieldPickup>)>>,
-    game_over_query: Query<Entity, (With<Text>, Without<LevelDisplay>, Without<HealthDisplay>)>,
+    game_over_query: Query<Entity, (With<Text>, Without<LevelDisplay>, Without<HealthDisplay>, Without<ShieldDisplay>)>,
     asset_server: Res<AssetServer>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
@@ -1882,6 +1920,7 @@ fn update_shield_pickups(
     time: Res<Time>,
     mut pickup_query: Query<(Entity, &mut Transform, &ShieldPickupRotation), With<ShieldPickup>>,
     player_query: Query<&Transform, (With<PlayerCamera>, Without<ShieldPickup>)>,
+    mut game_state: ResMut<GameState>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
@@ -1894,6 +1933,9 @@ fn update_shield_pickups(
         let distance = player_transform.translation.distance(transform.translation);
         
         if distance < (PLAYER_RADIUS + 0.5) { // 0.5 is the pickup radius
+            // Set shield to 100%
+            game_state.shield_value = 100;
+            
             // Spawn particle effect with blue color for shield pickup
             spawn_particle_explosion(
                 &mut commands,
@@ -2028,5 +2070,16 @@ fn update_shield_material(
 
         // Remove the ShieldMaterial component since we've applied the material
         commands.entity(entity).remove::<ShieldMaterial>();
+    }
+}
+
+fn update_shield_value(
+    time: Res<Time>,
+    mut game_state: ResMut<GameState>,
+) {
+    if game_state.shield_value > 0 {
+        // Decrease shield by 10 per second
+        let decrease = (10.0 * time.delta_seconds()) as u32;
+        game_state.shield_value = game_state.shield_value.saturating_sub(decrease);
     }
 }

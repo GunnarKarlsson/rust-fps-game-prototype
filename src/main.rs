@@ -1770,13 +1770,11 @@ fn start_screen_system(
     mut game_state: ResMut<GameState>,
     start_screen_query: Query<Entity, With<StartScreen>>,
     level: Res<LevelHandle>,
-    mut levels: ResMut<Assets<Level>>,
+    levels: ResMut<Assets<Level>>,
 ) {
-    if let Some(level) = levels.remove(level.0.id()) {
-        println!("level: {:?}", level);
-        for row in level.grid_layout {
-
-        }
+    if let Some(level) = levels.get(level.0.id()) {
+        println!("level from json: {:?}", level.grid_layout);
+        println!("level from constant: {:?}", GRID_LAYOUT);
     }
     if !game_state.has_started && keyboard.just_pressed(KeyCode::KeyS) {
         // Remove all start screen entities (background, title, instructions, and start prompt)

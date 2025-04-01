@@ -1043,7 +1043,7 @@ fn shoot_bullet(
             .with_children(|parent| {
                 error!("DEBUG: Attempting to spawn bullet model");
                 parent.spawn(SceneBundle {
-                    scene: asset_server.load("models/bullet.glb#Scene0"),
+                    scene: asset_server.load("models/bullet-foam.glb#Scene0"),
                     transform: Transform::from_scale(Vec3::splat(2.0))
                         .with_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_4 * 2.0)), // 45-degree rotation around X-axis
                     ..default()
@@ -1298,6 +1298,7 @@ fn enemy_shooting(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    asset_server: Res<AssetServer>,
     mut enemy_query: Query<(&Transform, &mut Enemy)>,
     player_query: Query<&Transform, With<PlayerCamera>>,
     time: Res<Time>,
@@ -1319,23 +1320,36 @@ fn enemy_shooting(
             // Calculate direction to player
             let direction = (player_transform.translation - enemy_transform.translation).normalize();
             
-            // Spawn enemy bullet as a sphere
+            // Calculate rotation to point in direction of travel
+            let rotation = Quat::from_rotation_arc(Vec3::Z, direction);
+            
+            // Spawn enemy bullet using the model
             commands.spawn((
-                PbrBundle {
-                    mesh: meshes.add(Mesh::from(Sphere::new(ENEMY_BULLET_SIZE))),
-                    material: materials.add(StandardMaterial {
-                        base_color: Color::rgb(1.0, 1.0, 0.0), // Yellow color
-                        emissive: Color::rgb(1.0, 1.0, 0.0) * 50.0,
-                        ..default()
-                    }),
-                    transform: Transform::from_translation(enemy_transform.translation),
+                SceneBundle {
+                    scene: asset_server.load("models/enemy-bullet.glb#Scene0"),
+                    transform: Transform::from_translation(enemy_transform.translation)
+                        .with_scale(Vec3::splat(0.5))
+                        .with_rotation(rotation),
                     ..default()
                 },
                 EnemyBullet {
                     velocity: direction * ENEMY_BULLET_SPEED,
                     lifetime: ENEMY_BULLET_LIFETIME,
                 },
-            ));
+            )).with_children(|parent| {
+                // Add yellow light at the center of the bullet with reduced intensity
+                parent.spawn(PointLightBundle {
+                    point_light: PointLight {
+                        color: Color::rgb(1.0, 1.0, 0.0), // Yellow light
+                        intensity: 5000.0, // Reduced from 10000.0 to make it fainter
+                        range: 3.0,
+                        shadows_enabled: true,
+                        ..default()
+                    },
+                    transform: Transform::from_xyz(0.0, 0.0, 0.0), // Center of the bullet
+                    ..default()
+                });
+            });
         }
     }
 }
@@ -1343,14 +1357,14 @@ fn enemy_shooting(
 fn update_enemy_bullets(
     mut commands: Commands,
     time: Res<Time>,
-    mut bullet_query: Query<(Entity, &mut Transform, &mut EnemyBullet)>,
+    mut bullet_query: Query<(Entity, &mut Transform, &mut EnemyBullet, &Children)>,
     player_query: Query<&Transform, (With<PlayerCamera>, Without<EnemyBullet>)>,
     mut game_state: ResMut<GameState>,
     mut flash_query: Query<Entity, With<DamageFlash>>,
 ) {
     let player_transform = player_query.single();
     
-    for (entity, mut transform, mut bullet) in bullet_query.iter_mut() {
+    for (entity, mut transform, mut bullet, children) in bullet_query.iter_mut() {
         // Update position
         let new_position = transform.translation + bullet.velocity * time.delta_seconds();
         
@@ -1389,14 +1403,16 @@ fn update_enemy_bullets(
                 },
             ));
 
-            commands.entity(entity).despawn();
+            // Remove the bullet and all its children (model and light)
+            commands.entity(entity).despawn_recursive();
             continue;
         }
         
         // Check for wall collision
         let (grid_x, grid_z) = world_to_grid(new_position);
         if is_wall_at_position(grid_x, grid_z) {
-            commands.entity(entity).despawn();
+            // Remove the bullet and all its children (model and light)
+            commands.entity(entity).despawn_recursive();
             continue;
         }
         
@@ -1406,7 +1422,8 @@ fn update_enemy_bullets(
         // Update lifetime
         bullet.lifetime -= time.delta_seconds();
         if bullet.lifetime <= 0.0 {
-            commands.entity(entity).despawn();
+            // Remove the bullet and all its children (model and light)
+            commands.entity(entity).despawn_recursive();
         }
     }
 }

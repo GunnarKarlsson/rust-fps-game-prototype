@@ -168,6 +168,11 @@ struct Enemy {
 }
 
 #[derive(Component)]
+struct EnemyRotation {
+    rotation_speed: f32,
+}
+
+#[derive(Component)]
 struct EnemyBullet {
     velocity: Vec3,
     lifetime: f32,
@@ -297,6 +302,9 @@ fn spawn_enemy(
             velocity: Vec3::new(0.0, 0.0, -1.0) * ENEMY_SPEED,
             last_direction_change: 0.0,
             shoot_cooldown: 0.0,
+        },
+        EnemyRotation {
+            rotation_speed: 0.5, // Rotate 0.5 radians per second
         },
         SpatialBundle {
             transform: Transform::from_xyz(position.x, position.y, position.z),
@@ -1231,10 +1239,10 @@ fn update_bullets(
 }
 
 fn update_enemies(
-    mut enemy_query: Query<(&mut Transform, &mut Enemy)>,
+    mut enemy_query: Query<(&mut Transform, &mut Enemy, &EnemyRotation)>,
     time: Res<Time>,
 ) {
-    for (mut transform, mut enemy) in enemy_query.iter_mut() {
+    for (mut transform, mut enemy, rotation) in enemy_query.iter_mut() {
         // Calculate new position
         let movement = enemy.velocity * time.delta_seconds();
         
@@ -1257,6 +1265,9 @@ fn update_enemies(
             // Update position if no collision
             transform.translation += movement;
         }
+
+        // Update rotation
+        transform.rotate_y(rotation.rotation_speed * time.delta_seconds());
     }
 }
 

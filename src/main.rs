@@ -1,6 +1,6 @@
 use bevy::{
     input::{keyboard::KeyCode, mouse::MouseMotion, ButtonInput},
-    math::primitives::{Cuboid, Plane3d},
+    math::primitives::{Cuboid, Plane3d, Sphere},
     prelude::*,
     render::texture::{ImageAddressMode, ImageSampler, ImageSamplerDescriptor},
     window::WindowMode,
@@ -223,6 +223,11 @@ struct StartScreen;
 #[derive(Component)]
 struct HealthPickupRotation {
     rotation_speed: f32,
+}
+
+#[derive(Component)]
+struct DamageFlash {
+    lifetime: f32,
 }
 
 fn spawn_wall(
@@ -556,6 +561,7 @@ fn main() {
                 restart_system.run_if(|state: Res<GameState>| state.has_started),
                 quit_system.run_if(|state: Res<GameState>| state.has_started),
                 update_health_pickups.run_if(|state: Res<GameState>| state.has_started),
+                update_damage_flash.run_if(|state: Res<GameState>| state.has_started),
             )
         )
         .run();
@@ -1313,14 +1319,10 @@ fn enemy_shooting(
             // Calculate direction to player
             let direction = (player_transform.translation - enemy_transform.translation).normalize();
             
-            // Spawn enemy bullet
+            // Spawn enemy bullet as a sphere
             commands.spawn((
                 PbrBundle {
-                    mesh: meshes.add(Mesh::from(Cuboid::new(
-                        ENEMY_BULLET_SIZE,
-                        ENEMY_BULLET_SIZE,
-                        ENEMY_BULLET_SIZE,
-                    ))),
+                    mesh: meshes.add(Mesh::from(Sphere::new(ENEMY_BULLET_SIZE))),
                     material: materials.add(StandardMaterial {
                         base_color: Color::rgb(1.0, 1.0, 0.0), // Yellow color
                         emissive: Color::rgb(1.0, 1.0, 0.0) * 50.0,
@@ -1344,6 +1346,7 @@ fn update_enemy_bullets(
     mut bullet_query: Query<(Entity, &mut Transform, &mut EnemyBullet)>,
     player_query: Query<&Transform, (With<PlayerCamera>, Without<EnemyBullet>)>,
     mut game_state: ResMut<GameState>,
+    mut flash_query: Query<Entity, With<DamageFlash>>,
 ) {
     let player_transform = player_query.single();
     
@@ -1361,6 +1364,31 @@ fn update_enemy_bullets(
                 game_state.player_health = 0;
                 game_state.is_game_over = true;
             }
+
+            // Remove any existing flash
+            for flash_entity in flash_query.iter() {
+                commands.entity(flash_entity).despawn();
+            }
+
+            // Spawn new flash effect
+            commands.spawn((
+                NodeBundle {
+                    style: Style {
+                        position_type: PositionType::Absolute,
+                        left: Val::Px(0.0),
+                        right: Val::Px(0.0),
+                        top: Val::Px(0.0),
+                        bottom: Val::Px(0.0),
+                        ..default()
+                    },
+                    background_color: BackgroundColor(Color::rgba(1.0, 0.0, 0.0, 0.3)), // Semi-transparent red
+                    ..default()
+                },
+                DamageFlash {
+                    lifetime: 0.1, // Flash lasts 0.2 seconds
+                },
+            ));
+
             commands.entity(entity).despawn();
             continue;
         }
@@ -1862,4 +1890,18 @@ fn spawn_start_screen(mut commands: Commands) {
             ..default()
         }));
     });
+}
+
+// Add this new system to handle the flash effect
+fn update_damage_flash(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut flash_query: Query<(Entity, &mut DamageFlash)>,
+) {
+    for (entity, mut flash) in flash_query.iter_mut() {
+        flash.lifetime -= time.delta_seconds();
+        if flash.lifetime <= 0.0 {
+            commands.entity(entity).despawn();
+        }
+    }
 }

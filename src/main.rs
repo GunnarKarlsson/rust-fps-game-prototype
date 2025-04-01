@@ -466,11 +466,15 @@ fn reset_game(
                 SceneBundle {
                     scene: asset_server.load(model_path),
                     transform: Transform::from_translation(world_pos)
-                        .with_scale(Vec3::splat(1.0)),
+                        .with_scale(Vec3::splat(1.0))
+                        .with_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_4)), // 45-degree tilt
                     ..default()
                 },
                 HealthPickup {
                     health_amount: 20,
+                },
+                HealthPickupRotation {
+                    rotation_speed: 1.0, // Rotate 1 radian per second
                 },
             )).with_children(|parent| {
                 // Add green light above the bottle
@@ -1059,6 +1063,7 @@ fn spawn_particle_explosion(
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
     position: Vec3,
+    color: Color,
 ) {
     for i in 0..PARTICLE_COUNT {
         // Calculate random direction in a sphere
@@ -1079,8 +1084,8 @@ fn spawn_particle_explosion(
                     PARTICLE_SIZE,
                 ))),
                 material: materials.add(StandardMaterial {
-                    base_color: Color::rgb(1.0, 0.0, 0.0),
-                    emissive: Color::rgb(1.0, 0.0, 0.0) * 50.0,
+                    base_color: color,
+                    emissive: color * 50.0,
                     ..default()
                 }),
                 transform: Transform::from_translation(position),
@@ -1137,7 +1142,13 @@ fn update_bullets(
                 }
 
                 // Spawn particle explosion at enemy position
-                spawn_particle_explosion(&mut commands, &mut meshes, &mut materials, enemy_transform.translation);
+                spawn_particle_explosion(
+                    &mut commands,
+                    &mut meshes,
+                    &mut materials,
+                    enemy_transform.translation,
+                    Color::rgb(1.0, 0.0, 0.0), // Red particles for enemy destruction
+                );
                 
                 // Remove all children first
                 for &child in children.iter() {
@@ -1158,7 +1169,13 @@ fn update_bullets(
         let (grid_x, grid_z) = world_to_grid(new_position);
         if is_wall_at_position(grid_x, grid_z) {
             // Spawn particle explosion at collision point
-            spawn_particle_explosion(&mut commands, &mut meshes, &mut materials, transform.translation);
+            spawn_particle_explosion(
+                &mut commands,
+                &mut meshes,
+                &mut materials,
+                transform.translation,
+                Color::rgb(1.0, 0.0, 0.0), // Red particles for wall collision
+            );
             
             // Remove bullet, its light, and all children
             commands.entity(bullet.light).despawn();
@@ -1169,7 +1186,13 @@ fn update_bullets(
         // Check for floor and ceiling collisions
         if new_position.y <= -0.5 || new_position.y >= 1.5 {
             // Spawn particle explosion at collision point
-            spawn_particle_explosion(&mut commands, &mut meshes, &mut materials, transform.translation);
+            spawn_particle_explosion(
+                &mut commands,
+                &mut meshes,
+                &mut materials,
+                transform.translation,
+                Color::rgb(1.0, 0.0, 0.0), // Red particles for floor/ceiling collision
+            );
             
             // Remove bullet, its light, and all children
             commands.entity(bullet.light).despawn();
@@ -1711,12 +1734,13 @@ fn update_health_pickups(
         let distance = player_transform.translation.distance(transform.translation);
         
         if distance < (PLAYER_RADIUS + 0.5) { // 0.5 is the pickup radius
-            // Spawn particle effect
+            // Spawn particle effect with green color
             spawn_particle_explosion(
                 &mut commands,
                 &mut meshes,
                 &mut materials,
                 transform.translation,
+                Color::rgb(0.0, 1.0, 0.0), // Green particles for health pickup
             );
             
             // Heal the player

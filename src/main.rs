@@ -1570,14 +1570,14 @@ fn game_over_ui(
                 format!("Shield: {}%", game_state.shield_value),
                 TextStyle {
                     font_size: 30.0,
-                    color: Color::rgb(0.0, 0.0, 1.0), // Blue color for shield
+                    color: Color::WHITE, // Changed from blue to white
                     ..default()
                 },
             )
             .with_style(Style {
                 position_type: PositionType::Absolute,
                 top: Val::Px(20.0),
-                right: Val::Px(380.0),
+                right: Val::Px(450.0), // Moved further left from 380.0 to 500.0
                 ..default()
             }),
             ShieldDisplay,
@@ -2078,8 +2078,8 @@ fn update_shield_value(
     mut game_state: ResMut<GameState>,
 ) {
     if game_state.shield_value > 0 {
-        // Decrease shield by 10 per second
-        let decrease = (10.0 * time.delta_seconds()) as u32;
+       
+        let decrease = (20.0 * time.delta_seconds()) as u32;
         game_state.shield_value = game_state.shield_value.saturating_sub(decrease);
     }
 }

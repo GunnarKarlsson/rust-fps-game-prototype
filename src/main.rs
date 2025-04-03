@@ -2,11 +2,16 @@ use bevy::{
     input::{keyboard::KeyCode, mouse::MouseMotion, ButtonInput},
     math::primitives::{Cuboid, Plane3d, Sphere},
     prelude::*,
-    render::texture::{ImageAddressMode, ImageSampler, ImageSamplerDescriptor},
+    render::{
+        render_resource::{Extent3d, TextureFormat, TextureDimension, TextureUsages},
+        render_asset::RenderAssetUsages,
+        texture::{ImageAddressMode, ImageSampler, ImageSamplerDescriptor},
+    },
     window::WindowMode,
     reflect::TypePath,
 };
 use bevy_common_assets::json::JsonAssetPlugin;
+use serde::Deserialize;
 
 const PLAYER_SPEED: f32 = 5.0;
 const MOUSE_SENSITIVITY: f32 = 0.002;
@@ -32,13 +37,13 @@ const MINIMAP_SIZE: f32 = 150.0; // Size in pixels
 const MINIMAP_PADDING: f32 = 20.0; // Padding from screen edges
 const MINIMAP_DOT_SIZE: f32 = 6.0; // Size of player/enemy dots
 
-#[derive(serde::Deserialize, Asset, TypePath, Debug)]
-struct Level {
-    grid_layout: Vec<[bool; 20]>,
-}
-
 #[derive(Resource)]
-struct LevelHandle(Handle<Level>);
+pub struct LevelHandle(Handle<Level>);
+
+#[derive(Asset, TypePath, Debug, Deserialize)]
+pub struct Level {
+    pub grid_layout: Vec<Vec<bool>>,
+}
 
 #[derive(Component)]
 struct Wall {}
@@ -598,6 +603,7 @@ fn main() {
             has_started: false,
             shield_value: 0,
         })
+        .insert_resource(LevelHandle(Handle::default()))
         .insert_resource(CurrentLevel { number: 1 })
         .add_systems(Startup, (setup, center_cursor, spawn_minimap, spawn_health_pickups, spawn_start_screen))
         .add_systems(

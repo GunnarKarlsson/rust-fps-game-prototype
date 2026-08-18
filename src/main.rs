@@ -1,13 +1,10 @@
 use bevy::{
     input::{keyboard::KeyCode, mouse::MouseMotion, ButtonInput},
-    math::primitives::{Cuboid, Plane3d, Sphere},
+    math::primitives::{Cuboid, Plane3d},
     prelude::*,
     render::{
-        render_resource::{Extent3d, TextureFormat, TextureDimension, TextureUsages},
-        render_asset::RenderAssetUsages,
         texture::{ImageAddressMode, ImageSampler, ImageSamplerDescriptor},
     },
-    window::WindowMode,
     reflect::TypePath,
 };
 use bevy_common_assets::json::JsonAssetPlugin;
@@ -23,7 +20,6 @@ const BULLET_LIFETIME: f32 = 10.0; // 10 meters at 1.0 m/s = 10 seconds
 const BULLET_SIZE: f32 = 0.1; // Size of the bullet
 const BULLET_LIGHT_INTENSITY: f32 = 300000.0;
 const BULLET_LIGHT_RANGE: f32 = 3.0;
-const ENEMY_SIZE: f32 = 0.3;
 const ENEMY_SPEED: f32 = 2.0;
 const ENEMY_COLLISION_RADIUS: f32 = 0.5; // Larger than PLAYER_RADIUS (0.3)
 const ENEMY_SHOOT_RATE: f32 = 4.0; // Changed from 1.0 to 2.0 seconds between shots
@@ -140,11 +136,6 @@ const GRID_LAYOUT: [[bool; GRID_SIZE]; GRID_SIZE] = [
     ],
 ];
 
-#[derive(Resource)]
-struct CurrentLevel {
-    number: u32,
-}
-
 #[derive(Component)]
 struct Bullet {
     velocity: Vec3,
@@ -162,9 +153,6 @@ const PARTICLE_COUNT: usize = 12;
 const PARTICLE_SIZE: f32 = 0.05;
 const PARTICLE_SPEED: f32 = 3.0;
 const PARTICLE_LIFETIME: f32 = 0.5;
-const PARTICLE_LIGHT_INTENSITY: f32 = 100000.0;
-const PARTICLE_LIGHT_RANGE: f32 = 2.0;
-
 #[derive(Component)]
 struct Enemy {
     velocity: Vec3,
@@ -405,7 +393,6 @@ fn reset_game(
     bullet_query: Query<Entity, Or<(With<Bullet>, With<EnemyBullet>)>>,
     pickup_query: Query<Entity, Or<(With<HealthPickup>, With<ShieldPickup>)>>,
     asset_server: Res<AssetServer>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     // Reset game state
     game_state.is_game_over = false;
@@ -425,21 +412,21 @@ fn reset_game(
 
     // Remove all existing enemies and their children
     for entity in enemy_query.iter() {
-        if let Some(mut enemy) = commands.get_entity(entity) {
+        if let Some(enemy) = commands.get_entity(entity) {
             enemy.despawn_recursive();
         }
     }
 
     // Remove all bullets and their children
     for entity in bullet_query.iter() {
-        if let Some(mut bullet) = commands.get_entity(entity) {
+        if let Some(bullet) = commands.get_entity(entity) {
             bullet.despawn_recursive();
         }
     }
 
     // Remove all existing pickups
     for entity in pickup_query.iter() {
-        if let Some(mut pickup) = commands.get_entity(entity) {
+        if let Some(pickup) = commands.get_entity(entity) {
             pickup.despawn_recursive();
         }
     }
@@ -604,7 +591,6 @@ fn main() {
             shield_value: 0,
         })
         .insert_resource(LevelHandle(Handle::default()))
-        .insert_resource(CurrentLevel { number: 1 })
         .add_systems(Startup, (setup, center_cursor, spawn_minimap, spawn_health_pickups, spawn_start_screen))
         .add_systems(
             Update,
@@ -1073,8 +1059,6 @@ fn quit_system(keyboard: Res<ButtonInput<KeyCode>>) {
 
 fn shoot_bullet(
     mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
     asset_server: Res<AssetServer>,
     keyboard: Res<ButtonInput<KeyCode>>,
     camera_query: Query<(&Transform, &PlayerCamera)>,
@@ -1362,8 +1346,6 @@ fn has_line_of_sight(enemy_pos: Vec3, player_pos: Vec3) -> bool {
 
 fn enemy_shooting(
     mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
     asset_server: Res<AssetServer>,
     mut enemy_query: Query<(&Transform, &mut Enemy)>,
     player_query: Query<&Transform, With<PlayerCamera>>,
@@ -1423,14 +1405,14 @@ fn enemy_shooting(
 fn update_enemy_bullets(
     mut commands: Commands,
     time: Res<Time>,
-    mut bullet_query: Query<(Entity, &mut Transform, &mut EnemyBullet, &Children)>,
+    mut bullet_query: Query<(Entity, &mut Transform, &mut EnemyBullet)>,
     player_query: Query<&Transform, (With<PlayerCamera>, Without<EnemyBullet>)>,
     mut game_state: ResMut<GameState>,
-    mut flash_query: Query<Entity, With<DamageFlash>>,
+    flash_query: Query<Entity, With<DamageFlash>>,
 ) {
     let player_transform = player_query.single();
     
-    for (entity, mut transform, mut bullet, children) in bullet_query.iter_mut() {
+    for (entity, mut transform, mut bullet) in bullet_query.iter_mut() {
         // Update position
         let new_position = transform.translation + bullet.velocity * time.delta_seconds();
         
@@ -1505,14 +1487,14 @@ fn update_enemy_bullets(
 fn game_over_ui(
     mut commands: Commands,
     game_state: Res<GameState>,
-    mut text_query: Query<(Entity, &mut Text, Option<&LevelDisplay>, Option<&HealthDisplay>, Option<&ShieldDisplay>)>,
+    mut text_query: Query<(&mut Text, Option<&LevelDisplay>, Option<&HealthDisplay>, Option<&ShieldDisplay>)>,
 ) {
     // Update or spawn level display
     let mut has_level_display = false;
     let mut has_health_display = false;
     let mut has_shield_display = false;
     
-    for (entity, mut text, level_display, health_display, shield_display) in text_query.iter_mut() {
+    for (mut text, level_display, health_display, shield_display) in text_query.iter_mut() {
         if level_display.is_some() {
             has_level_display = true;
             text.sections[0].value = format!("Level {}", game_state.current_level);
@@ -1591,7 +1573,9 @@ fn game_over_ui(
     }
 
     // Check if we need to spawn game over message
-    let has_game_over = text_query.iter().any(|(_, _, level, health, shield)| level.is_none() && health.is_none() && shield.is_none());
+    let has_game_over = text_query
+        .iter()
+        .any(|(_, level, health, shield)| level.is_none() && health.is_none() && shield.is_none());
     if (game_state.is_game_over || game_state.is_level_complete) && !has_game_over {
         let message = if game_state.is_game_over {
             "Game Over\nPress P to Play Again\nPress Q to Exit"
@@ -1631,7 +1615,6 @@ fn restart_system(
     pickup_query: Query<Entity, Or<(With<HealthPickup>, With<ShieldPickup>)>>,
     game_over_query: Query<Entity, (With<Text>, Without<LevelDisplay>, Without<HealthDisplay>, Without<ShieldDisplay>)>,
     asset_server: Res<AssetServer>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     if (game_state.is_game_over && keyboard.just_pressed(KeyCode::KeyP)) ||
        (game_state.is_level_complete && keyboard.just_pressed(KeyCode::KeyS)) {
@@ -1655,7 +1638,6 @@ fn restart_system(
             bullet_query,
             pickup_query,
             asset_server,
-            materials,
         );
     }
 }
@@ -2068,7 +2050,7 @@ fn update_shield_material(
 ) {
     for entity in shield_query.iter() {
         // Create emissive blue material for the shield
-        let shield_material = materials.add(StandardMaterial {
+        let _ = materials.add(StandardMaterial {
             base_color: Color::rgb(0.0, 0.0, 1.0), // Blue base color
             emissive: Color::rgb(0.0, 0.0, 20.0),   // Blue emissive glow (doubled intensity)
             ..default()

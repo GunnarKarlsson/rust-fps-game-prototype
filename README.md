@@ -23,11 +23,12 @@ The project features a grid-based level loaded from a JSON map file, first-perso
 - Cargo
 - A GPU/driver setup compatible with Bevy/WGPU
 
-## Running
+## How to Run the Project
 
 ```bash
 cargo run
 ```
+then follow on-screen instructions.
 
 ## Controls
 

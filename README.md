@@ -1,7 +1,7 @@
 # FPS Game Prototype in Rust
 
 An FPS game prototype built in Rust with Bevy.  
-The project features a grid-based level, first-person movement, enemies, projectile combat, pickups, and a minimap UI.
+The project features a grid-based level loaded from a JSON map file, first-person movement, enemies, projectile combat, pickups, and an top-view minimap.
 
 ## Features
 
@@ -10,7 +10,7 @@ The project features a grid-based level, first-person movement, enemies, project
 - Enemy movement, line-of-sight shooting, and level progression
 - Projectile effects and particle explosions
 - Health and shield pickups
-- On-screen HUD (health, shield, level) and minimap
+- On-screen HUD (health, shield, level) and a minimap
 
 ## Screenshots
 
@@ -19,11 +19,9 @@ The project features a grid-based level, first-person movement, enemies, project
 
 ## Requirements
 
-- Rust (stable)
+- Tested with Rust 1.86.0
 - Cargo
 - A GPU/driver setup compatible with Bevy/WGPU
-
-Install Rust with [rustup](https://rustup.rs/) if needed.
 
 ## Running
 

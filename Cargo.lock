@@ -1780,6 +1780,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "aa9a19cbb55df58761df49b23516a86d432839add4af60fc256da840f66ed35b"
 
 [[package]]
+name = "fps-game-prototype"
+version = "0.1.0"
+dependencies = [
+ "bevy",
+ "bevy_common_assets",
+ "glam",
+ "image",
+ "noise",
+ "rand 0.8.5",
+ "serde",
+ "winit",
+]
+
+[[package]]
 name = "futures-core"
 version = "0.3.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4455,20 +4469,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0e97b544156e9bebe1a0ffbc03484fc1ffe3100cbce3ffb17eac35f7cdd7ab36"
 dependencies = [
  "memchr",
-]
-
-[[package]]
-name = "wolfenstein3d"
-version = "0.1.0"
-dependencies = [
- "bevy",
- "bevy_common_assets",
- "glam",
- "image",
- "noise",
- "rand 0.8.5",
- "serde",
- "winit",
 ]
 
 [[package]]

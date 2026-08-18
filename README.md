@@ -1,6 +1,6 @@
-# Wolfenstein3D (Bevy Prototype)
+# FPS Game Prototype in Rust
 
-A small Wolfenstein-inspired FPS prototype built in Rust with Bevy.  
+An FPS game prototype built in Rust with Bevy.  
 The project features a grid-based level, first-person movement, enemies, projectile combat, pickups, and a minimap UI.
 
 ## Features
